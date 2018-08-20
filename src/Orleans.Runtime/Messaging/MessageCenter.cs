@@ -7,6 +7,7 @@ using Orleans.Serialization;
 using Microsoft.Extensions.Options;
 using Orleans.Configuration;
 using Orleans.Hosting;
+using System.Threading.Tasks;
 
 namespace Orleans.Runtime.Messaging
 {

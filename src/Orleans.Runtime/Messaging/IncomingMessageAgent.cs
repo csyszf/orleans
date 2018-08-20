@@ -55,7 +55,6 @@ namespace Orleans.Runtime.Messaging
                     break;
                 }
 
-
                 ReceiveMessage(msg);
             }
         }
