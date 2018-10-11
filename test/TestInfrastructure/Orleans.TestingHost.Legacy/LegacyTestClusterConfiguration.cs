@@ -1,4 +1,5 @@
 using System;
+using System.Buffers;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
@@ -27,7 +28,7 @@ namespace Orleans.TestingHost
         {
             this.builder = builder;
         }
-        
+
         /// <summary>Gets or sets the cluster configuration.</summary>
         public ClusterConfiguration ClusterConfiguration
         {
@@ -45,7 +46,7 @@ namespace Orleans.TestingHost
                 : (this.builder.Properties[ClientConfigurationKey] = BuildClientConfiguration(this.ClusterConfiguration)));
             set => this.builder.Properties[ClientConfigurationKey] = value;
         }
-        
+
         /// <summary>Build a cluster configuration.</summary>
         /// <returns>The built cluster configuration</returns>
         public ClusterConfiguration BuildClusterConfiguration()
@@ -150,7 +151,7 @@ namespace Orleans.TestingHost
                 Options.Create(new SerializationProviderOptions()),
                 new NullLoggerFactory(),
                 new CachedTypeResolver(),
-                new SerializationStatisticsGroup(Options.Create(new StatisticsOptions {CollectionLevel = StatisticsLevel.Info})),
+                new SerializationStatisticsGroup(Options.Create(new StatisticsOptions { CollectionLevel = StatisticsLevel.Info })),
                 MessagingOptions.DEFAULT_LARGE_MESSAGE_WARNING_THRESHOLD);
             serializationManager.RegisterSerializers(applicationPartManager);
             return serializationManager;
@@ -159,10 +160,12 @@ namespace Orleans.TestingHost
         internal static string Serialize(SerializationManager serializationManager, object config)
         {
             BufferPool.InitGlobalBufferPool(new SiloMessagingOptions());
-            var writer = new BinaryTokenStreamWriter();
-            serializationManager.Serialize(config, writer);
-            string serialized = Convert.ToBase64String(writer.ToByteArray());
-            writer.ReleaseBuffers();
+            var buffer = new ByteArrayBufferWriter();
+            var context = new SerializationContext(serializationManager, buffer);
+            var writer = new BinaryTokenStreamWriter(context);
+            serializationManager.Serialize(config, ref writer);
+            string serialized = Convert.ToBase64String(buffer.Buffer.ToArray());
+            buffer.ReleaseBuffers();
             return serialized;
         }
 

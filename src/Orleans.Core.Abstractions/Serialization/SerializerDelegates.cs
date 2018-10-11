@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 
 namespace Orleans.Serialization
 {
@@ -12,9 +12,9 @@ namespace Orleans.Serialization
 
     /// <summary> Serializer function. </summary>
     /// <param name="raw">Input object to be serialized.</param>
-    /// <param name="context">The context under which this object is being serialized.</param>
+    /// <param name="writer">The writer under which this object is being serialized.</param>
     /// <param name="expected">Current Type active in this stream.</param>
-    public delegate void Serializer(object raw, ISerializationContext context, Type expected);
+    public delegate void Serializer(object raw, ref BinaryTokenStreamWriter writer, Type expected);
 
     /// <summary>
     /// Deep copier function.

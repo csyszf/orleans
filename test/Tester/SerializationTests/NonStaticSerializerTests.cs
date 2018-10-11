@@ -1,4 +1,4 @@
-﻿using Orleans;
+using Orleans;
 using Orleans.CodeGeneration;
 using Orleans.Serialization;
 using System;
@@ -32,7 +32,7 @@ namespace Tester.SerializationTests
         {
             SimplePocoClassSerializer.CallCounter = 0;
             var input = new SimplePocoClass { A = 30 };
-            var output = (SimplePocoClass) fixture.SerializationManager.DeepCopy(input);
+            var output = (SimplePocoClass)fixture.SerializationManager.DeepCopy(input);
             Assert.Equal(1, SimplePocoClassSerializer.CallCounter);
             Assert.Equal(input.A, output.A);
         }
@@ -64,12 +64,12 @@ namespace Tester.SerializationTests
         }
 
         [SerializerMethod]
-        public void Serialize(object obj, ISerializationContext context, Type expected)
+        public void Serialize(object obj, ref BinaryTokenStreamWriter writer, Type expected)
         {
             AssertConstructorHasBeenCalled();
 
             CallCounter++;
-            context.GetSerializationManager().Serialize(((SimplePocoClass)obj).A, context.StreamWriter);
+            writer.Context.GetSerializationManager().Serialize(((SimplePocoClass)obj).A, ref writer);
         }
 
         [DeserializerMethod]
@@ -78,7 +78,7 @@ namespace Tester.SerializationTests
             AssertConstructorHasBeenCalled();
 
             CallCounter++;
-            var a = (int) context.GetSerializationManager().Deserialize(typeof(int), context.StreamReader);
+            var a = (int)context.GetSerializationManager().Deserialize(typeof(int), context.StreamReader);
             return new SimplePocoClass { A = a };
         }
 

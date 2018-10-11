@@ -1,4 +1,5 @@
 using System;
+using System.Buffers;
 using System.Globalization;
 using System.Net;
 using Microsoft.Extensions.DependencyInjection;
@@ -22,7 +23,7 @@ namespace UnitTests.General
 
         class A { }
         class B : A { }
-        
+
         public Identifiertests(ITestOutputHelper output, TestEnvironmentFixture fixture)
         {
             this.output = output;
@@ -36,9 +37,10 @@ namespace UnitTests.General
 
             var result = key.ToByteArray();
 
-            var sw = new BinaryTokenStreamWriter();
+            var buffer = new ByteArrayBufferWriter();
+            var sw = new BinaryTokenStreamWriter(buffer);
             sw.Write(key);
-            var expected = sw.ToByteArray();
+            var expected = buffer.Buffer.ToArray();
 
             Assert.Equal(expected.Length, result.Length);
             for (int i = 0; i < expected.Length; i++)
@@ -75,11 +77,12 @@ namespace UnitTests.General
 
             for (int i = 0; i < numberofHash; i++)
             {
-                var sw = new BinaryTokenStreamWriter();
+                var buffer = new ByteArrayBufferWriter();
+                var sw = new BinaryTokenStreamWriter(buffer);
                 sw.Write(siloAddress);
                 sw.Write(i);
-                var tmp = sw.ToByteArray();
-                var expected = JenkinsHash.ComputeHash(sw.ToByteArray());
+                var tmp = buffer.Buffer.ToArray();
+                var expected = JenkinsHash.ComputeHash(tmp);
 
                 Assert.Equal(expected, result[i]);
             }
@@ -129,9 +132,10 @@ namespace UnitTests.General
         {
             {
                 var expected = UniqueKey.NewKey(Guid.NewGuid());
-                BinaryTokenStreamWriter writer = new BinaryTokenStreamWriter();
+                var buffer = new ByteArrayBufferWriter();
+                var writer = new BinaryTokenStreamWriter(buffer);
                 writer.Write(expected);
-                BinaryTokenStreamReader reader = new BinaryTokenStreamReader(writer.ToBytes());
+                BinaryTokenStreamReader reader = new BinaryTokenStreamReader(buffer.Buffer.ToArray());
                 var actual = reader.ReadUniqueKey();
                 Assert.Equal(expected, actual); // UniqueKey.Serialize() and UniqueKey.Deserialize() failed to reproduce an identical object (case #1).
             }
@@ -139,9 +143,10 @@ namespace UnitTests.General
             {
                 var kx = random.Next().ToString(CultureInfo.InvariantCulture);
                 var expected = UniqueKey.NewKey(Guid.NewGuid(), category: UniqueKey.Category.KeyExtGrain, keyExt: kx);
-                BinaryTokenStreamWriter writer = new BinaryTokenStreamWriter();
+                var buffer = new ByteArrayBufferWriter();
+                var writer = new BinaryTokenStreamWriter(buffer);
                 writer.Write(expected);
-                BinaryTokenStreamReader reader = new BinaryTokenStreamReader(writer.ToBytes());
+                BinaryTokenStreamReader reader = new BinaryTokenStreamReader(buffer.Buffer.ToArray());
                 var actual = reader.ReadUniqueKey();
                 Assert.Equal(expected, actual); // UniqueKey.Serialize() and UniqueKey.Deserialize() failed to reproduce an identical object (case #2).
             }
@@ -149,9 +154,10 @@ namespace UnitTests.General
             {
                 var kx = random.Next().ToString(CultureInfo.InvariantCulture) + new String('*', 400);
                 var expected = UniqueKey.NewKey(Guid.NewGuid(), category: UniqueKey.Category.KeyExtGrain, keyExt: kx);
-                BinaryTokenStreamWriter writer = new BinaryTokenStreamWriter();
+                var buffer = new ByteArrayBufferWriter();
+                var writer = new BinaryTokenStreamWriter(buffer);
                 writer.Write(expected);
-                BinaryTokenStreamReader reader = new BinaryTokenStreamReader(writer.ToBytes());
+                BinaryTokenStreamReader reader = new BinaryTokenStreamReader(buffer.Buffer.ToArray());
                 var actual = reader.ReadUniqueKey();
                 Assert.Equal(expected, actual); // UniqueKey.Serialize() and UniqueKey.Deserialize() failed to reproduce an identical object (case #3).
             }
@@ -306,7 +312,7 @@ namespace UnitTests.General
                 ulong u3 = BitConverter.ToUInt64(byteData, 16);
                 var referenceHash = JenkinsHash.ComputeHash(byteData);
                 var optimizedHash = JenkinsHash.ComputeHash(u1, u2, u3);
-                Assert.Equal(referenceHash,  optimizedHash);  //  "Optimized hash value doesn't match the reference value for inputs {0}, {1}, {2}", u1, u2, u3
+                Assert.Equal(referenceHash, optimizedHash);  //  "Optimized hash value doesn't match the reference value for inputs {0}, {1}, {2}", u1, u2, u3
             }
         }
 

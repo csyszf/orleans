@@ -1,4 +1,5 @@
 using System;
+using System.Buffers;
 
 namespace Orleans.Serialization
 {
@@ -8,7 +9,7 @@ namespace Orleans.Serialization
         /// Gets the service provider.
         /// </summary>
         IServiceProvider ServiceProvider { get; }
-        
+
         /// <summary>
         /// Gets additional context associated with this instance.
         /// </summary>
@@ -36,10 +37,10 @@ namespace Orleans.Serialization
         /// <summary>
         /// Gets the stream writer.
         /// </summary>
-        IBinaryTokenStreamWriter StreamWriter { get; }
+        IBufferWriter<byte> BufferWriter { get; }
 
         /// <summary>
-        /// Records the provided object at the specified offset into <see cref="StreamWriter"/>.
+        /// Records the provided object at the specified offset into writer.
         /// </summary>
         /// <param name="original"></param>
         /// <param name="offset"></param>
@@ -48,8 +49,9 @@ namespace Orleans.Serialization
         int CheckObjectWhileSerializing(object raw);
 
         int CurrentOffset { get; }
+        void Advance(int offset);
 
-        void SerializeInner(object obj, Type expected);
+        void SerializeInner(object obj, ref BinaryTokenStreamWriter writer, Type expected);
     }
 
     public interface IDeserializationContext : ISerializerContext

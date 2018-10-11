@@ -805,7 +805,7 @@ namespace UnitTests.Serialization
             Assert.Equal(grainId.GetPrimaryKey(), grainRef.GrainId.GetPrimaryKey()); //PK different after copy
             Assert.Equal(input, grainRef); //Wrong contents after round-trip of input
         }
-        
+
         [Theory, TestCategory("Functional")]
         [InlineData(SerializerToUse.NoFallback)]
         public void Serialize_GrainBase_ViaStandardSerializer(SerializerToUse serializerToUse)
@@ -937,7 +937,7 @@ namespace UnitTests.Serialization
             object deserialized;
             var formatter = new BinaryFormatter
             {
-                Context = new StreamingContext(StreamingContextStates.All, new SerializationContext(serializationManager))
+                Context = new StreamingContext(StreamingContextStates.All, new SerializationContext(serializationManager, new ByteArrayBufferWriter()))
             };
             using (var str = new MemoryStream())
             {
@@ -1075,7 +1075,7 @@ namespace UnitTests.Serialization
             Assert.Equal(c1.CircularTest2.CircularTest1List.Count, deserialized.CircularTest2.CircularTest1List.Count);
             Assert.Same(deserialized, deserialized.CircularTest2.CircularTest1List[0]);
         }
-        
+
         [Theory, TestCategory("Functional")]
         [InlineData(SerializerToUse.NoFallback)]
         public void Serialize_Enums(SerializerToUse serializerToUse)
@@ -1110,7 +1110,7 @@ namespace UnitTests.Serialization
                 throw new NotSupportedException();
             }
 
-            public void Serialize(object item, ISerializationContext context, Type expectedType)
+            public void Serialize(object item, ref BinaryTokenStreamWriter context, Type expectedType)
             {
                 throw new NotSupportedException();
             }
@@ -1120,7 +1120,7 @@ namespace UnitTests.Serialization
                 throw new NotSupportedException();
             }
         }
-        
+
         /// <summary>
         /// Tests that ISerializable classes have their callbacks called in the correct order.
         /// </summary>

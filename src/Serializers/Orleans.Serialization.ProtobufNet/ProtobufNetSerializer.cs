@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Concurrent;
 using System.IO;
 using Orleans.Concurrency;
@@ -41,11 +41,11 @@ namespace Orleans.Serialization.ProtobufNet
         }
 
         /// <inheritdoc />
-        public void Serialize(object item, ISerializationContext context, Type expectedType)
+        public void Serialize(object item, ref BinaryTokenStreamWriter writer, Type expectedType)
         {
-            if (context == null)
+            if (writer.Context == null)
             {
-                throw new ArgumentNullException(nameof(context));
+                throw new ArgumentNullException(nameof(writer.Context));
             }
 
             if (item == null)
@@ -53,10 +53,10 @@ namespace Orleans.Serialization.ProtobufNet
                 // Special handling for null value. 
                 // Since in this ProtobufSerializer we are usually writing the data lengh as 4 bytes
                 // we also have to write the Null object as 4 bytes lengh of zero.
-                context.StreamWriter.Write(0);
+                writer.Write(0);
                 return;
             }
-            
+
             using (var stream = new MemoryStream())
             {
                 ProtoBuf.Serializer.Serialize(stream, item);
@@ -71,8 +71,8 @@ namespace Orleans.Serialization.ProtobufNet
                 // Alternatively, we could force to always append to BinaryTokenStreamWriter, but that could create a lot of small ArraySegments.
                 // The plan is to ask the ProtoBuff team to add support for some "InputStream" interface, like Bond does.
                 byte[] outBytes = stream.ToArray();
-                context.StreamWriter.Write(outBytes.Length);
-                context.StreamWriter.Write(outBytes);
+                writer.Write(outBytes.Length);
+                writer.Write(outBytes);
             }
         }
 

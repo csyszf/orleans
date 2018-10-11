@@ -57,7 +57,7 @@ namespace DefaultCluster.Tests.General
         {
             IChainedGrain g1 = this.GrainFactory.GetGrain<IChainedGrain>(GetRandomGrainId());
             IChainedGrain g2 = this.GrainFactory.GetGrain<IChainedGrain>(GetRandomGrainId());
-            
+
             g1.PassThis(g2).Wait();
         }
 
@@ -109,7 +109,7 @@ namespace DefaultCluster.Tests.General
         {
             var typeResolver = this.HostedCluster.Client.ServiceProvider.GetRequiredService<ITypeResolver>();
             var settings = OrleansJsonSerializer.GetDefaultSerializerSettings(typeResolver, HostedCluster.GrainFactory);
-            
+
             var grain = HostedCluster.GrainFactory.GetGrain<ISimpleGrain>(GetRandomGrainId());
             await grain.SetA(56820);
             var input = new GenericGrainReferenceHolder
@@ -217,9 +217,9 @@ namespace DefaultCluster.Tests.General
 
             Assert.IsAssignableFrom(grain.GetType(), other);
             Assert.NotNull(other);
-            Assert.Equal(grain,  other);  // "Deserialized grain reference equality is preserved"
+            Assert.Equal(grain, other);  // "Deserialized grain reference equality is preserved"
             int res = other.GetA().Result;
-            Assert.Equal(id,  res);  // "Returned values from call to deserialized grain reference"
+            Assert.Equal(id, res);  // "Returned values from call to deserialized grain reference"
         }
 
         private T DotNetSerializeRoundtrip<T>(T obj)
@@ -229,7 +229,7 @@ namespace DefaultCluster.Tests.General
             {
                 var formatter = new BinaryFormatter
                 {
-                    Context = new StreamingContext(StreamingContextStates.All, new SerializationContext(this.HostedCluster.SerializationManager))
+                    Context = new StreamingContext(StreamingContextStates.All, new SerializationContext(this.HostedCluster.SerializationManager, new ByteArrayBufferWriter()))
                 };
                 formatter.Serialize(memoryStream, obj);
                 memoryStream.Flush();

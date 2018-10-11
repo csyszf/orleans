@@ -1,4 +1,5 @@
-﻿using System;
+using System;
+using System.Buffers;
 using System.Collections.Generic;
 using System.Linq;
 using System.Net;
@@ -136,7 +137,7 @@ namespace UnitTests.Serialization
             Assert.Equal<int>(length, headerLength + bodyLength + 8); //Serialized lengths are incorrect
             byte[] header = new byte[headerLength];
             Array.Copy(data, 8, header, 0, headerLength);
-            byte[] body = new byte[bodyLength];
+            var body = ArrayPool<byte>.Shared.Rent(bodyLength);
             Array.Copy(data, 8 + headerLength, body, 0, bodyLength);
             var headerList = new List<ArraySegment<byte>>();
             headerList.Add(new ArraySegment<byte>(header));
@@ -150,6 +151,7 @@ namespace UnitTests.Serialization
             {
                 Headers = SerializationManager.DeserializeMessageHeaders(context)
             };
+
             deserializedMessage.SetBodyBytes(bodyList);
             return deserializedMessage;
         }

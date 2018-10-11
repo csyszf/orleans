@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using Orleans.Runtime;
 using Orleans.Serialization;
 
@@ -38,10 +38,10 @@ namespace Tester.Serialization
             return null;
         }
 
-        public void Serialize(object item, ISerializationContext context, Type expectedType)
+        public void Serialize(object item, ref BinaryTokenStreamWriter writer, Type expectedType)
         {
             SerializeCalled = true;
-            context.StreamWriter.WriteNull();
+            writer.WriteNull();
         }
 
         public object Deserialize(Type expectedType, IDeserializationContext context)

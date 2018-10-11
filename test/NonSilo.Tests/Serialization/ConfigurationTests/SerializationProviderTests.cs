@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Linq;
 using Orleans.Runtime.Configuration;
 using Orleans.Serialization;
@@ -44,7 +44,7 @@ namespace UnitTests.Serialization
         [Fact, TestCategory("BVT"), TestCategory("Functional"), TestCategory("Serialization")]
         public void SerializationProvider_LoadWithClassNotImplementingInterface()
         {
-            Assert.Throws<FormatException>(()=> ClientConfiguration.LoadFromFile("Serialization\\ConfigurationTests\\ClientConfigurationForSerializer6.xml"));
+            Assert.Throws<FormatException>(() => ClientConfiguration.LoadFromFile("Serialization\\ConfigurationTests\\ClientConfigurationForSerializer6.xml"));
         }
 
         [Fact, TestCategory("BVT"), TestCategory("Functional"), TestCategory("Serialization")]
@@ -100,10 +100,10 @@ namespace UnitTests.Serialization
             return null;
         }
 
-        public void Serialize(object item, ISerializationContext context, Type expectedType)
+        public void Serialize(object item, ref BinaryTokenStreamWriter writer, Type expectedType)
         {
             SerializeCalled = true;
-            context.StreamWriter.WriteNull();
+            writer.WriteNull();
         }
 
         public object Deserialize(Type expectedType, IDeserializationContext context)

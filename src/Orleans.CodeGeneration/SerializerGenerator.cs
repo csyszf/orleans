@@ -300,10 +300,7 @@ namespace Orleans.CodeGenerator
 
         private static MemberDeclarationSyntax GenerateSerializerMethod(Type type, List<FieldInfoMember> fields)
         {
-            Expression<Action<ISerializationContext>> serializeInner =
-                ctx =>
-                    ctx.SerializeInner(default(object), default(Type));
-            var contextParameter = SF.IdentifierName("context");
+            var writerParameter = SF.IdentifierName("writer");
 
             var body = new List<StatementSyntax>
             {
@@ -313,20 +310,35 @@ namespace Orleans.CodeGenerator
                             SF.VariableDeclarator("input")
                                 .WithInitializer(
                                     SF.EqualsValueClause(
-                                        SF.CastExpression(type.GetTypeSyntax(), SF.IdentifierName("untypedInput"))))))
+                                        SF.CastExpression(type.GetTypeSyntax(), SF.IdentifierName("untypedInput")))))),
+                SF.LocalDeclarationStatement(
+                    SF.VariableDeclaration(typeof(ISerializationContext).GetTypeSyntax())
+                        .AddVariables(
+                            SF.VariableDeclarator("ctx")
+                                .WithInitializer(
+                                    SF.EqualsValueClause(
+                                        SF.MemberAccessExpression(SyntaxKind.SimpleMemberAccessExpression,
+                                        writerParameter,
+                                        typeof(BinaryTokenStreamWriter).GetProperty(nameof(BinaryTokenStreamWriter.Context)).Name.ToIdentifierName()
+                                        )))))
             };
 
             var inputExpression = SF.IdentifierName("input");
+            var contextParameter = SF.IdentifierName("ctx");
 
             // Serialize all members.
             foreach (var field in fields)
             {
                 body.Add(
                     SF.ExpressionStatement(
-                        serializeInner.Invoke(contextParameter)
-                            .AddArgumentListArguments(
+                        SF.InvocationExpression(SF.MemberAccessExpression(SyntaxKind.SimpleMemberAccessExpression,
+                        contextParameter, "SerializeInner".ToIdentifierName()),
+                        SF.ArgumentList(SF.SeparatedList(
+                            new[] {
                                 SF.Argument(field.GetGetter(inputExpression, forceAvoidCopy: true)),
-                                SF.Argument(SF.TypeOfExpression(field.FieldInfo.FieldType.GetTypeSyntax())))));
+                                SF.Argument(writerParameter).WithRefKindKeyword(SF.Token(SyntaxKind.RefKeyword)),
+                                SF.Argument(SF.TypeOfExpression(field.FieldInfo.FieldType.GetTypeSyntax()))
+                            })))));
             }
 
             return
@@ -334,7 +346,8 @@ namespace Orleans.CodeGenerator
                     .AddModifiers(SF.Token(SyntaxKind.PublicKeyword))
                     .AddParameterListParameters(
                         SF.Parameter(SF.Identifier("untypedInput")).WithType(typeof(object).GetTypeSyntax()),
-                        SF.Parameter(SF.Identifier("context")).WithType(typeof(ISerializationContext).GetTypeSyntax()),
+                        SF.Parameter(SF.Identifier("writer")).WithType(typeof(BinaryTokenStreamWriter).GetTypeSyntax())
+                            .WithModifiers(SF.TokenList(SF.Token(SyntaxKind.RefKeyword))),
                         SF.Parameter(SF.Identifier("expected")).WithType(typeof(Type).GetTypeSyntax()))
                     .AddBodyStatements(body.ToArray())
                     .AddAttributeLists(

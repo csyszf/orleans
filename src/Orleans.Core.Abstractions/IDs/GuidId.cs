@@ -81,9 +81,9 @@ namespace Orleans.Runtime
             return GetGuidId(id);
         }
 
-        public void SerializeToStream(IBinaryTokenStreamWriter stream)
+        public void SerializeToStream(ref BinaryTokenStreamWriter writer)
         {
-            stream.Write(this.Guid);
+            writer.Write(this.Guid);
         }
 
         internal static GuidId DeserializeFromStream(IBinaryTokenStreamReader stream)

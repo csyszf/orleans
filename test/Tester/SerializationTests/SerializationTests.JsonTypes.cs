@@ -31,13 +31,13 @@ namespace UnitTests.Serialization
                             'DVD read/writer', 
                             '500 gigabyte hard drive' 
                            ] 
-                   }"; 
- 
+                   }";
+
             JObject input = JObject.Parse(json);
             JObject output = fixture.SerializationManager.RoundTripSerializationForTesting(input);
             Assert.Equal(input.ToString(), output.ToString());
         }
-        
+
         [Fact, TestCategory("BVT"), TestCategory("Functional"), TestCategory("Serialization"), TestCategory("JSON")]
         public void SerializationTests_Json_InnerTypes_TypeNameHandling()
         {
@@ -67,7 +67,7 @@ namespace UnitTests.Serialization
             Assert.Equal(typeof(JObject), jsonDeser.MyDictionary["obj1"].GetType());
             // The below Assert actualy fails since jsonDeser has JObjects instead of InnerTypes!
             // Assert.Equal(original, jsonDeser);
-    
+
             // If we now take this half baked object: RootType at the root and JObject in the leaves
             // and pass it through .NET binary serializer it would fail on this object since JObject is not marked as [Serializable]
             // and therefore .NET binary serializer cannot serialize it.
@@ -125,10 +125,10 @@ namespace UnitTests.Serialization
             }
 
             [SerializerMethod]
-            public static void Serialize(object obj, ISerializationContext context, Type expected)
+            public static void Serialize(object obj, ref BinaryTokenStreamWriter writer, Type expected)
             {
                 var str = JsonConvert.SerializeObject(obj, Settings);
-                context.GetSerializationManager().Serialize(str, context.StreamWriter);
+                writer.Context.GetSerializationManager().Serialize(str, ref writer);
             }
 
             [DeserializerMethod]

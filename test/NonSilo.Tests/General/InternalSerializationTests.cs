@@ -4,6 +4,7 @@ using TestExtensions;
 namespace UnitTests.Serialization
 {
     using System;
+    using System.Buffers;
     using System.Collections.Generic;
     using System.Linq;
     using System.Reflection;
@@ -69,9 +70,11 @@ namespace UnitTests.Serialization
             var initial = counters.Select(_ => _.GetCurrentValue()).ToList();
 
             // Serialize and deserialize the grain reference.
-            var writer = new BinaryTokenStreamWriter();
-            this.fixture.SerializationManager.Serialize(grainReference, writer);
-            var deserialized = this.fixture.SerializationManager.Deserialize(new BinaryTokenStreamReader(writer.ToByteArray()));
+            var buffer = new ByteArrayBufferWriter();
+            var context = new SerializationContext(this.fixture.SerializationManager, buffer);
+            var writer = new BinaryTokenStreamWriter(context);
+            this.fixture.SerializationManager.Serialize(grainReference, ref writer);
+            var deserialized = this.fixture.SerializationManager.Deserialize(new BinaryTokenStreamReader(buffer.Buffer.ToArray()));
             var copy = (GrainReference)this.fixture.SerializationManager.DeepCopy(deserialized);
 
             // Get the final value of the fallback serialization counters.

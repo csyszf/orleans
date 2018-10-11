@@ -1,4 +1,4 @@
-﻿
+
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -100,9 +100,7 @@ namespace Orleans.Transactions
                 var exception = (e as OrleansTransactionAbortedException)
                     ?? new OrleansTransactionAbortedException(TransactionId.ToString(), e);
 
-                var writer = new BinaryTokenStreamWriter();
-                sm.Serialize(exception, writer);
-                OriginalException = writer.ToByteArray();
+                OriginalException = sm.SerializeToByteArray(exception);
             }
         }
 
@@ -130,7 +128,7 @@ namespace Orleans.Transactions
             // Take sum of write counts
             foreach (KeyValuePair<ParticipantId, AccessCounter> participant in other.Participants)
             {
-                if(!this.Participants.Keys.Contains(participant.Key))
+                if (!this.Participants.Keys.Contains(participant.Key))
                 {
                     this.Participants[participant.Key] = participant.Value;
                 }

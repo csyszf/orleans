@@ -1,4 +1,6 @@
-﻿using Orleans.Serialization;
+using System.Buffers;
+using Orleans.Runtime;
+using Orleans.Serialization;
 using TestExtensions;
 using UnitTests.GrainInterfaces;
 using UnitTests.Grains;
@@ -19,7 +21,7 @@ namespace UnitTests.Serialization
         [Fact, TestCategory("Serialization")]
         public void Serialize_CustomCopier()
         {
-            var original = new ClassWithCustomCopier() {IntProperty = 5, StringProperty = "Hello"};
+            var original = new ClassWithCustomCopier() { IntProperty = 5, StringProperty = "Hello" };
             var copy = this.fixture.SerializationManager.DeepCopy(original);
             Assert.Equal(1, ClassWithCustomCopier.CopyCounter); //Custom copier was not called
         }
@@ -28,11 +30,13 @@ namespace UnitTests.Serialization
         public void Serialize_CustomSerializer()
         {
             var original = new ClassWithCustomSerializer() { IntProperty = -3, StringProperty = "Goodbye" };
-            var writeStream = new BinaryTokenStreamWriter();
-            this.fixture.SerializationManager.Serialize(original, writeStream);
+            var buffer = new ByteArrayBufferWriter();
+            var context = new SerializationContext(this.fixture.SerializationManager, buffer);
+            var writeStream = new BinaryTokenStreamWriter(context);
+            this.fixture.SerializationManager.Serialize(original, ref writeStream);
             Assert.Equal(1, ClassWithCustomSerializer.SerializeCounter); //Custom serializer was not called
 
-            var readStream = new BinaryTokenStreamReader(writeStream.ToBytes());
+            var readStream = new BinaryTokenStreamReader(buffer.Buffer.ToArray());
             var obj = this.fixture.SerializationManager.Deserialize(readStream);
             Assert.Equal(1, ClassWithCustomSerializer.DeserializeCounter); //Custom deserializer was not called
         }
@@ -72,7 +76,7 @@ namespace UnitTests.Serialization
         {
             Assert.NotNull(this.fixture.SerializationManager.GetSerializer(typeof(SerializerTestClass6))); //No serializer generated for return type of parameterless Task grain method
         }
-        
+
         [Fact, TestCategory("Serialization")]
         public void Serialize_AsyncObserverArgumentType()
         {

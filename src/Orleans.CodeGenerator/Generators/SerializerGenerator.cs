@@ -286,7 +286,7 @@ namespace Orleans.CodeGenerator.Generators
 
         private static MemberDeclarationSyntax GenerateSerializerMethod(WellKnownTypes wellKnownTypes, INamedTypeSymbol type, List<FieldInfoMember> fields, SemanticModel model)
         {
-            var contextParameter = IdentifierName("context");
+            var writerParameter = IdentifierName("writer");
 
             var body = new List<StatementSyntax>
             {
@@ -296,10 +296,21 @@ namespace Orleans.CodeGenerator.Generators
                             VariableDeclarator("input")
                                 .WithInitializer(
                                     EqualsValueClause(
-                                        CastExpression(type.ToTypeSyntax(), IdentifierName("untypedInput"))))))
+                                        CastExpression(type.ToTypeSyntax(), IdentifierName("untypedInput")))))),
+                LocalDeclarationStatement(
+                    VariableDeclaration(wellKnownTypes.ISerializationContext.ToTypeSyntax())
+                        .AddVariables(
+                            VariableDeclarator("ctx")
+                                .WithInitializer(
+                                    EqualsValueClause(
+                                        MemberAccessExpression(SyntaxKind.SimpleMemberAccessExpression,
+                                        writerParameter,
+                                        "Context".ToIdentifierName()
+                                        )))))
             };
 
             var inputExpression = IdentifierName("input");
+            var contextParameter = IdentifierName("ctx");
 
             // Serialize all members.
             foreach (var field in fields)
@@ -309,6 +320,7 @@ namespace Orleans.CodeGenerator.Generators
                         InvocationExpression(contextParameter.Member("SerializeInner"))
                             .AddArgumentListArguments(
                                 Argument(field.GetGetter(inputExpression, forceAvoidCopy: true)),
+                                Argument(writerParameter).WithRefKindKeyword(Token(SyntaxKind.RefKeyword)),
                                 Argument(TypeOfExpression(field.Type)))));
             }
 
@@ -317,7 +329,8 @@ namespace Orleans.CodeGenerator.Generators
                     .AddModifiers(Token(SyntaxKind.PublicKeyword))
                     .AddParameterListParameters(
                         Parameter(Identifier("untypedInput")).WithType(wellKnownTypes.Object.ToTypeSyntax()),
-                        Parameter(Identifier("context")).WithType(wellKnownTypes.ISerializationContext.ToTypeSyntax()),
+                        Parameter(Identifier("writer")).WithType(wellKnownTypes.BinaryTokenStreamWriter.ToTypeSyntax())
+                            .WithModifiers(TokenList(Token(SyntaxKind.RefKeyword))),
                         Parameter(Identifier("expected")).WithType(wellKnownTypes.Type.ToTypeSyntax()))
                     .AddBodyStatements(body.ToArray())
                     .AddAttributeLists(

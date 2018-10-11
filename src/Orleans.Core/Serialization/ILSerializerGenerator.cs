@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
 using System.Linq.Expressions;
 using System.Reflection;
@@ -15,7 +16,7 @@ namespace Orleans.Serialization
         private static readonly RuntimeTypeHandle UIntPtrTypeHandle = typeof(UIntPtr).TypeHandle;
 
         private static readonly Type DelegateType = typeof(Delegate);
-        
+
         private static readonly Dictionary<RuntimeTypeHandle, SimpleTypeSerializer> DirectSerializers;
 
         private static readonly ReflectedSerializationMethodInfo SerializationMethodInfos = new ReflectedSerializationMethodInfo();
@@ -26,29 +27,37 @@ namespace Orleans.Serialization
 
         static ILSerializerGenerator()
         {
+            var writerType = typeof(BinaryTokenStreamWriter);
+
             DirectSerializers = new Dictionary<RuntimeTypeHandle, SimpleTypeSerializer>
             {
-                [typeof(int).TypeHandle] = new SimpleTypeSerializer(w => w.Write(default(int)), r => r.ReadInt()),
-                [typeof(uint).TypeHandle] = new SimpleTypeSerializer(w => w.Write(default(uint)), r => r.ReadUInt()),
-                [typeof(short).TypeHandle] = new SimpleTypeSerializer(w => w.Write(default(short)), r => r.ReadShort()),
-                [typeof(ushort).TypeHandle] = new SimpleTypeSerializer(w => w.Write(default(ushort)), r => r.ReadUShort()),
-                [typeof(long).TypeHandle] = new SimpleTypeSerializer(w => w.Write(default(long)), r => r.ReadLong()),
-                [typeof(ulong).TypeHandle] = new SimpleTypeSerializer(w => w.Write(default(ulong)), r => r.ReadULong()),
-                [typeof(byte).TypeHandle] = new SimpleTypeSerializer(w => w.Write(default(byte)), r => r.ReadByte()),
-                [typeof(sbyte).TypeHandle] = new SimpleTypeSerializer(w => w.Write(default(sbyte)), r => r.ReadSByte()),
-                [typeof(float).TypeHandle] = new SimpleTypeSerializer(w => w.Write(default(float)), r => r.ReadFloat()),
-                [typeof(double).TypeHandle] = new SimpleTypeSerializer(w => w.Write(default(double)), r => r.ReadDouble()),
+                [typeof(int).TypeHandle] = new SimpleTypeSerializer(WriteMethod<int>(), r => r.ReadInt()),
+                [typeof(uint).TypeHandle] = new SimpleTypeSerializer(WriteMethod<uint>(), r => r.ReadUInt()),
+                [typeof(short).TypeHandle] = new SimpleTypeSerializer(WriteMethod<short>(), r => r.ReadShort()),
+                [typeof(ushort).TypeHandle] = new SimpleTypeSerializer(WriteMethod<ushort>(), r => r.ReadUShort()),
+                [typeof(long).TypeHandle] = new SimpleTypeSerializer(WriteMethod<long>(), r => r.ReadLong()),
+                [typeof(ulong).TypeHandle] = new SimpleTypeSerializer(WriteMethod<ulong>(), r => r.ReadULong()),
+                [typeof(byte).TypeHandle] = new SimpleTypeSerializer(WriteMethod<byte>(), r => r.ReadByte()),
+                [typeof(sbyte).TypeHandle] = new SimpleTypeSerializer(WriteMethod<sbyte>(), r => r.ReadSByte()),
+                [typeof(float).TypeHandle] = new SimpleTypeSerializer(WriteMethod<float>(), r => r.ReadFloat()),
+                [typeof(double).TypeHandle] = new SimpleTypeSerializer(WriteMethod<double>(), r => r.ReadDouble()),
                 [typeof(decimal).TypeHandle] =
-                    new SimpleTypeSerializer(w => w.Write(default(decimal)), r => r.ReadDecimal()),
-                [typeof(string).TypeHandle] = new SimpleTypeSerializer(w => w.Write(default(string)), r => r.ReadString()),
-                [typeof(char).TypeHandle] = new SimpleTypeSerializer(w => w.Write(default(char)), r => r.ReadChar()),
-                [typeof(Guid).TypeHandle] = new SimpleTypeSerializer(w => w.Write(default(Guid)), r => r.ReadGuid()),
+                    new SimpleTypeSerializer(WriteMethod<decimal>(), r => r.ReadDecimal()),
+                [typeof(string).TypeHandle] = new SimpleTypeSerializer(WriteMethod<string>(), r => r.ReadString()),
+                [typeof(char).TypeHandle] = new SimpleTypeSerializer(WriteMethod<char>(), r => r.ReadChar()),
+                [typeof(Guid).TypeHandle] = new SimpleTypeSerializer(WriteMethod<Guid>(), r => r.ReadGuid()),
                 [typeof(DateTime).TypeHandle] =
-                    new SimpleTypeSerializer(w => w.Write(default(DateTime)), r => r.ReadDateTime()),
+                    new SimpleTypeSerializer(WriteMethod<DateTime>(), r => r.ReadDateTime()),
                 [typeof(TimeSpan).TypeHandle] =
-                    new SimpleTypeSerializer(w => w.Write(default(TimeSpan)), r => r.ReadTimeSpan())
+                    new SimpleTypeSerializer(WriteMethod<TimeSpan>(), r => r.ReadTimeSpan())
             };
+
+            MethodInfo WriteMethod<T>()
+            {
+                return writerType.GetMethod(nameof(BinaryTokenStreamWriter.Write), new[] { typeof(T) });
+            }
         }
+
 
         /// <summary>
         /// Returns a value indicating whether the provided <paramref name="type"/> is supported.
@@ -180,9 +189,9 @@ namespace Orleans.Serialization
             {
                 streamingContext = il.DeclareLocal(typeof(StreamingContext));
                 il.LoadLocalAddress(streamingContext);
-                il.LoadConstant((int) StreamingContextStates.All);
+                il.LoadConstant((int)StreamingContextStates.All);
                 il.LoadArgument(1);
-                il.Call(typeof(StreamingContext).GetConstructor(new[] {typeof(StreamingContextStates), typeof(object)}));
+                il.Call(typeof(StreamingContext).GetConstructor(new[] { typeof(StreamingContextStates), typeof(object) }));
             }
 
             // Set the typed input variable from the method parameter.
@@ -197,6 +206,8 @@ namespace Orleans.Serialization
                 il.Call(callbacks.OnSerializing);
             }
 
+            //var dwm = typeof(Debug).GetMethod("WriteLine", new[] { typeof(string) });
+
             // Serialize each field
             foreach (var field in fields)
             {
@@ -206,13 +217,16 @@ namespace Orleans.Serialization
                 {
                     typeHandle = fieldType.GetEnumUnderlyingType().TypeHandle;
                 }
-                
+
                 if (DirectSerializers.TryGetValue(typeHandle, out var serializer))
                 {
-                    il.LoadArgument(1);
-                    il.Call(SerializationMethodInfos.GetStreamFromSerializationContext);
+                    //il.LoadLocal(typedInput);
+                    //il.LoadField(field);
+                    //il.Call(dwm);
+
+                    il.LoadArgument(1); // load the writer
                     il.LoadLocal(typedInput);
-                    il.LoadField(field);
+                    il.LoadField(field); // load input's field
 
                     il.Call(serializer.WriteMethod);
                 }
@@ -227,7 +241,7 @@ namespace Orleans.Serialization
                     il.BoxIfValueType(field.FieldType);
 
                     // Serialize the field.
-                    il.LoadArgument(1);
+                    il.LoadArgument(1); //load writer
                     il.LoadType(field.FieldType);
                     il.Call(serializeMethod);
                 }
@@ -257,7 +271,7 @@ namespace Orleans.Serialization
             {
                 streamingContext = il.DeclareLocal(typeof(StreamingContext));
                 il.LoadLocalAddress(streamingContext);
-                il.LoadConstant((int) StreamingContextStates.All);
+                il.LoadConstant((int)StreamingContextStates.All);
                 il.LoadArgument(1);
                 il.Call(typeof(StreamingContext).GetConstructor(new[]
                     {typeof(StreamingContextStates), typeof(object)}));
@@ -291,7 +305,7 @@ namespace Orleans.Serialization
                 {
                     var typeHandle = fieldType.GetEnumUnderlyingType().TypeHandle;
                     il.LoadLocalAsReference(type, result);
-                    
+
                     il.LoadArgument(1);
                     il.Call(SerializationMethodInfos.GetStreamFromDeserializationContext);
                     il.Call(DirectSerializers[typeHandle].ReadMethod);
@@ -482,10 +496,10 @@ namespace Orleans.Serialization
         private class SimpleTypeSerializer
         {
             public SimpleTypeSerializer(
-                Expression<Action<BinaryTokenStreamWriter>> write,
+                MethodInfo write,
                 Expression<Action<BinaryTokenStreamReader>> read)
             {
-                this.WriteMethod = TypeUtils.Method(write);
+                this.WriteMethod = write;
                 this.ReadMethod = TypeUtils.Method(read);
             }
 

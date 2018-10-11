@@ -1,4 +1,5 @@
 using System;
+using System.Buffers;
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 using System.Linq;
@@ -37,19 +38,20 @@ namespace UnitTests.Serialization
 
             var generator = new ILSerializerGenerator();
             var serializers = generator.GenerateSerializer(input.GetType(), f => f.Name != "One", f => f.Name != "Three");
-            var writer = new SerializationContext(this.fixture.SerializationManager)
-            {
-                StreamWriter = new BinaryTokenStreamWriter()
-            };
-            var copy = (FieldTest)serializers.DeepCopy(input, writer);
+
+            var buffer = new ByteArrayBufferWriter();
+            var context = new SerializationContext(this.fixture.SerializationManager, buffer);
+            var writer = new BinaryTokenStreamWriter(context);
+
+            var copy = (FieldTest)serializers.DeepCopy(input, context);
             Assert.Equal(1, copy.One);
             Assert.Equal(2, copy.Two);
             Assert.Equal(0, copy.Three);
-            
-            serializers.Serialize(input, writer, input.GetType());
+
+            serializers.Serialize(input, ref writer, input.GetType());
             var reader = new DeserializationContext(this.fixture.SerializationManager)
             {
-                StreamReader = new BinaryTokenStreamReader(writer.StreamWriter.ToByteArray())
+                StreamReader = new BinaryTokenStreamReader(buffer.Buffer.ToArray())
             };
             var deserialized = (FieldTest)serializers.Deserialize(input.GetType(), reader);
 
@@ -67,14 +69,14 @@ namespace UnitTests.Serialization
             var input = new FieldTest();
             var generator = new ILSerializerGenerator();
             var serializers = generator.GenerateSerializer(input.GetType());
-            var writer = new SerializationContext(this.fixture.SerializationManager)
-            {
-                StreamWriter = new BinaryTokenStreamWriter()
-            };
-            serializers.Serialize(input, writer, input.GetType());
+            var buffer = new ByteArrayBufferWriter();
+            var context = new SerializationContext(this.fixture.SerializationManager, buffer);
+            var writer = new BinaryTokenStreamWriter(context);
+
+            serializers.Serialize(input, ref writer, input.GetType());
             var reader = new DeserializationContext(this.fixture.SerializationManager)
             {
-                StreamReader = new BinaryTokenStreamReader(writer.StreamWriter.ToByteArray())
+                StreamReader = new BinaryTokenStreamReader(buffer.Buffer.ToArray())
             };
             var deserialized = (FieldTest)serializers.Deserialize(input.GetType(), reader);
 
@@ -97,16 +99,16 @@ namespace UnitTests.Serialization
             };
             var generator = new ILSerializerGenerator();
             var serializers = generator.GenerateSerializer(input.GetType());
-            var writer = new SerializationContext(this.fixture.SerializationManager)
-            {
-                StreamWriter = new BinaryTokenStreamWriter()
-            };
-            serializers.Serialize(input, writer, input.GetType());
+            var buffer = new ByteArrayBufferWriter();
+            var context = new SerializationContext(this.fixture.SerializationManager, buffer);
+            var writer = new BinaryTokenStreamWriter(context);
+
+            serializers.Serialize(input, ref writer, input.GetType());
             var reader = new DeserializationContext(this.fixture.SerializationManager)
             {
-                StreamReader = new BinaryTokenStreamReader(writer.StreamWriter.ToByteArray())
+                StreamReader = new BinaryTokenStreamReader(buffer.Buffer.ToArray())
             };
-            var deserialized = (FieldTest) serializers.Deserialize(input.GetType(), reader);
+            var deserialized = (FieldTest)serializers.Deserialize(input.GetType(), reader);
 
             Assert.Equal(input.One, deserialized.One);
             Assert.Equal(input.Two, deserialized.Two);
@@ -158,7 +160,7 @@ namespace UnitTests.Serialization
                 Payload = "pyjamas"
             };
 
-            var result2 = (SimpleISerializableObject) BuiltInSerializerTests.DotNetSerializationLoop(
+            var result2 = (SimpleISerializableObject)BuiltInSerializerTests.DotNetSerializationLoop(
                 input2,
                 this.fixture.SerializationManager);
 
@@ -197,7 +199,7 @@ namespace UnitTests.Serialization
                 Payload = "pyjamas"
             };
 
-            var result2 = (SimpleISerializableStruct) BuiltInSerializerTests.DotNetSerializationLoop(
+            var result2 = (SimpleISerializableStruct)BuiltInSerializerTests.DotNetSerializationLoop(
                 input2,
                 this.fixture.SerializationManager);
 
@@ -209,19 +211,18 @@ namespace UnitTests.Serialization
         {
             var serializer = new ILBasedSerializer(new CachedTypeResolver());
             Assert.True(serializer.IsSupportedType(input.GetType()));
-            
-            var serializationContext =
-                new SerializationContext(this.fixture.SerializationManager)
-                {
-                    StreamWriter = new BinaryTokenStreamWriter()
-                };
-            serializer.Serialize(input, serializationContext, typeof(T));
+
+            var buffer = new ByteArrayBufferWriter();
+            var context = new SerializationContext(this.fixture.SerializationManager, buffer);
+            var writer = new BinaryTokenStreamWriter(context);
+
+            serializer.Serialize(input, ref writer, typeof(T));
             var deserializationContext = new DeserializationContext(this.fixture.SerializationManager)
             {
-                StreamReader = new BinaryTokenStreamReader(serializationContext.StreamWriter.ToBytes())
+                StreamReader = new BinaryTokenStreamReader(buffer.Buffer.ToArray())
             };
 
-            return (T) serializer.Deserialize(typeof(T), deserializationContext);
+            return (T)serializer.Deserialize(typeof(T), deserializationContext);
         }
 
         [Serializable]
@@ -237,12 +238,12 @@ namespace UnitTests.Serialization
             {
                 this.History.Add("default_ctor");
             }
-            
+
             public List<string> History => this.history ?? (this.history = new List<string>());
             public List<StreamingContext> Contexts => this.contexts ?? (this.contexts = new List<StreamingContext>());
 
             public string Payload { get; set; }
-            
+
             [OnSerializing]
             internal void OnSerializingMethod(StreamingContext context)
             {
@@ -285,7 +286,7 @@ namespace UnitTests.Serialization
 
             [NonSerialized]
             private List<StreamingContext> contexts;
-            
+
             public List<string> History => this.history ?? (this.history = new List<string>());
             public List<StreamingContext> Contexts => this.contexts ?? (this.contexts = new List<StreamingContext>());
 

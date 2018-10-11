@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using Orleans.CodeGeneration;
 using Orleans.Runtime;
@@ -87,13 +87,12 @@ namespace UnitTests.Grains
         }
 
         [SerializerMethod]
-        private static void Serialize(object input, ISerializationContext context, Type expected)
+        private static void Serialize(object input, ref BinaryTokenStreamWriter writer, Type expected)
         {
             SerializeCounter++;
             var obj = input as ClassWithCustomSerializer;
-            var stream = context.StreamWriter;
-            stream.Write(obj.IntProperty);
-            stream.Write(obj.StringProperty);
+            writer.Write(obj.IntProperty);
+            writer.Write(obj.StringProperty);
         }
 
         [DeserializerMethod]
@@ -137,7 +136,7 @@ namespace UnitTests.Grains
             return source;
         }
 
-        public void Serialize(object item, ISerializationContext context, Type expectedType)
+        public void Serialize(object item, ref BinaryTokenStreamWriter writer, Type expectedType)
         {
             SerializeCalled = true;
         }
@@ -178,7 +177,7 @@ namespace UnitTests.Grains
             return source;
         }
 
-        public void Serialize(object item, ISerializationContext context, Type expectedType)
+        public void Serialize(object item, ref BinaryTokenStreamWriter writer, Type expectedType)
         {
             SerializeCalled = true;
         }
@@ -213,7 +212,7 @@ namespace UnitTests.Grains
         }
 
         [SerializerMethod]
-        private static void Serialize(object input, ISerializationContext context, Type expected)
+        private static void Serialize(object input, ref BinaryTokenStreamWriter writer, Type expected)
         {
             SerializeWasCalled = true;
         }

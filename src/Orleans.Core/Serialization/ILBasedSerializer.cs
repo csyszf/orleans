@@ -1,4 +1,4 @@
-﻿namespace Orleans.Serialization
+namespace Orleans.Serialization
 {
     using System;
     using System.Collections.Concurrent;
@@ -49,7 +49,7 @@
                     fallbackExceptionSerializer.DeepCopy,
                     fallbackExceptionSerializer.Serialize,
                     fallbackExceptionSerializer.Deserialize));
-            
+
             // Configure the serializer to be used when a concrete type is not known.
             // The serializer will generate and register serializers for concrete types
             // as they are discovered.
@@ -62,9 +62,10 @@
             this.namedTypeSerializer = new SerializerBundle(
                 new SerializerMethods(
                     (original, context) => original,
-                    (original, writer, expected) => {
-                        var writer1 = writer.StreamWriter;
-                        this.typeSerializer.WriteNamedType((Type)original, writer1);
+                    (object original, ref BinaryTokenStreamWriter writer, Type expectedType) =>
+                    {
+                        var writer1 = writer;
+                        this.typeSerializer.WriteNamedType((Type)original, ref writer1);
                     },
                     (expected, reader) =>
                     {
@@ -91,17 +92,17 @@
         }
 
         /// <inheritdoc />
-        public void Serialize(object item, ISerializationContext context, Type expectedType)
+        public void Serialize(object item, ref BinaryTokenStreamWriter writer, Type expectedType)
         {
             if (item == null)
             {
-                context.StreamWriter.Write((byte)ILSerializerTypeToken.Null);
+                writer.Write((byte)ILSerializerTypeToken.Null);
                 return;
             }
 
             var actualType = item.GetType();
-            this.WriteType(actualType, expectedType, context);
-            this.serializers.GetOrAdd(actualType, this.generateSerializer).Methods.Serialize(item, context, expectedType);
+            this.WriteType(actualType, expectedType, ref writer);
+            this.serializers.GetOrAdd(actualType, this.generateSerializer).Methods.Serialize(item, ref writer, expectedType);
         }
 
         /// <inheritdoc />
@@ -115,22 +116,22 @@
                        .Methods.Deserialize(expectedType, context);
         }
 
-        private void WriteType(Type actualType, Type expectedType, ISerializationContext context)
+        private void WriteType(Type actualType, Type expectedType, ref BinaryTokenStreamWriter writer)
         {
             if (ExceptionType.IsAssignableFrom(actualType))
             {
                 // Exceptions are always serialized using a special-purpose serializer, even if the actual and expected
                 // types match. That serializer also writes its own type header.
-                context.StreamWriter.Write((byte) ILSerializerTypeToken.Exception);
+                writer.Write((byte)ILSerializerTypeToken.Exception);
             }
             else if (actualType == expectedType)
             {
-                context.StreamWriter.Write((byte) ILSerializerTypeToken.ExpectedType);
+                writer.Write((byte)ILSerializerTypeToken.ExpectedType);
             }
             else
             {
-                context.StreamWriter.Write((byte) ILSerializerTypeToken.NamedType);
-                this.typeSerializer.WriteNamedType(actualType, context.StreamWriter);
+                writer.Write((byte)ILSerializerTypeToken.NamedType);
+                this.typeSerializer.WriteNamedType(actualType, ref writer);
             }
         }
 
@@ -157,7 +158,7 @@
             {
                 return this.namedTypeSerializer;
             }
-            
+
             if (ExceptionType.IsAssignableFrom(type))
             {
                 return this.exceptionSerializer;
@@ -165,7 +166,7 @@
 
             return new SerializerBundle(this.generator.GenerateSerializer(type));
         }
-        
+
         private enum ILSerializerTypeToken : byte
         {
             Null,
@@ -180,7 +181,7 @@
         private class SerializerBundle
         {
             public readonly SerializerMethods Methods;
-            
+
             public SerializerBundle(SerializerMethods methods)
             {
                 this.Methods = methods;

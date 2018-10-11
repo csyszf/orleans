@@ -1,4 +1,4 @@
-﻿using Orleans;
+using Orleans;
 using Orleans.CodeGeneration;
 using Orleans.Serialization;
 using System;
@@ -44,11 +44,10 @@ namespace TestGrainInterfaces
         }
 
         [SerializerMethod]
-        public static void Serialize(object untypedInput, ISerializationContext context, Type expected)
+        public static void Serialize(object untypedInput, ref BinaryTokenStreamWriter writer, Type expected)
         {
             var document = (XDocument)untypedInput;
-            var stream = context.StreamWriter;
-            stream.Write(document.ToString());
+            writer.Write(document.ToString());
         }
 
         [DeserializerMethod]

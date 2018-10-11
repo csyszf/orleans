@@ -8,11 +8,13 @@ namespace Orleans.Serialization
     using System.Linq.Expressions;
     using System.Reflection;
     using Bond;
+    using Bond.IO.Unsafe;
+    using Bond.Protocols;
     using Runtime;
-    using BondBinaryReader = Bond.Protocols.SimpleBinaryReader<Orleans.Serialization.InputStream>;
-    using BondBinaryWriter = Bond.Protocols.SimpleBinaryWriter<Orleans.Serialization.OutputStream>;
-    using BondTypeDeserializer = Bond.Deserializer<Bond.Protocols.SimpleBinaryReader<Orleans.Serialization.InputStream>>;
-    using BondTypeSerializer = Bond.Serializer<Bond.Protocols.SimpleBinaryWriter<Orleans.Serialization.OutputStream>>;
+    using BondBinaryReader = Bond.Protocols.SimpleBinaryReader<Bond.IO.Unsafe.InputBuffer>;
+    using BondBinaryWriter = Bond.Protocols.SimpleBinaryWriter<Bond.IO.Unsafe.OutputBuffer>;
+    using BondTypeDeserializer = Bond.Deserializer<Bond.Protocols.SimpleBinaryReader<Bond.IO.Unsafe.InputBuffer>>;
+    using BondTypeSerializer = Bond.Serializer<Bond.Protocols.SimpleBinaryWriter<Bond.IO.Unsafe.OutputBuffer>>;
 
     /// <summary>
     /// An implementation of IExternalSerializer for usage with Bond types.
@@ -103,20 +105,18 @@ namespace Orleans.Serialization
                 throw new ArgumentOutOfRangeException("no deserializer provided for the selected type", "expectedType");
             }
 
-            var inputStream = InputStream.Create(context.StreamReader);
-            var bondReader = new BondBinaryReader(inputStream);
+            var reader = context.StreamReader;
+            int length = reader.ReadInt();
+            byte[] data = reader.ReadBytes(length);
+            var input = new InputBuffer(data);
+            var bondReader = new SimpleBinaryReader<InputBuffer>(input);
             return deserializer.Deserialize(bondReader);
         }
 
         /// <inheritdoc />
-        public void Serialize(object item, ISerializationContext context, Type expectedType)
+        public void Serialize(object item, ref BinaryTokenStreamWriter writer, Type expectedType)
         {
-            if (context == null)
-            {
-                throw new ArgumentNullException(nameof(context));
-            }
 
-            var writer = context.StreamWriter;
             if (item == null)
             {
                 writer.WriteNull();
@@ -130,14 +130,16 @@ namespace Orleans.Serialization
                 LogWarning(2, "no serializer found for type {0}", item.GetType());
                 throw new ArgumentOutOfRangeException("no serializer provided for the selected type", "untypedInput");
             }
-
-            var outputStream = OutputStream.Create(writer);
-            var bondWriter = new BondBinaryWriter(outputStream);
+            var output = new OutputBuffer();
+            var bondWriter = new SimpleBinaryWriter<OutputBuffer>(output);
             serializer.Serialize(item, bondWriter);
+            var data = output.Data.AsSpan();
+            writer.Write(data.Length);
+            writer.Write(data);
         }
 
         private static object DeepCopy<T>(T source, object cloner)
-        {       
+        {
             return ((Cloner<T>)cloner).Clone<T>(source);
         }
 
@@ -165,7 +167,7 @@ namespace Orleans.Serialization
 
         private void LogWarning(int code, string format, params object[] parameters)
         {
-            if(logger.IsEnabled(LogLevel.Warning))
+            if (logger.IsEnabled(LogLevel.Warning))
                 logger.Warn(code, format, parameters);
         }
 

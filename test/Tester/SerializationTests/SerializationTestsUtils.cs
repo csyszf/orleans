@@ -1,4 +1,6 @@
-﻿using Orleans;
+using System.Buffers;
+using Orleans;
+using Orleans.Runtime;
 using Orleans.Serialization;
 using Xunit;
 
@@ -8,12 +10,11 @@ namespace Tester.SerializationTests
     {
         public static void VerifyUsingFallbackSerializer(SerializationManager serializationManager, object ob)
         {
-            var writer = new SerializationContext(serializationManager)
-            {
-                StreamWriter = new BinaryTokenStreamWriter()
-            };
-            serializationManager.FallbackSerializer(ob, writer, ob.GetType());
-            var bytes = writer.StreamWriter.ToByteArray();
+            var output = new ByteArrayBufferWriter();
+            var context = new SerializationContext(serializationManager, output);
+            var writer = new BinaryTokenStreamWriter(context);
+            serializationManager.FallbackSerializer(ob, ref writer, ob.GetType());
+            var bytes = output.Buffer.ToArray();
 
             var reader = new BinaryTokenStreamReader(bytes);
             var serToken = reader.ReadToken();

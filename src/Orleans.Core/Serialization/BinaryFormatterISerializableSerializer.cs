@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Runtime.Serialization;
 
 namespace Orleans.Serialization
@@ -9,7 +9,7 @@ namespace Orleans.Serialization
     internal class BinaryFormatterISerializableSerializer : IKeyedSerializer
     {
         private static readonly Type SerializableType = typeof(ISerializable);
-        
+
         private readonly BinaryFormatterSerializer serializer;
 
         public BinaryFormatterISerializableSerializer(BinaryFormatterSerializer serializer)
@@ -27,7 +27,7 @@ namespace Orleans.Serialization
         public object DeepCopy(object source, ICopyContext context) => this.serializer.DeepCopy(source, context);
 
         /// <inheritdoc />
-        public void Serialize(object item, ISerializationContext context, Type expectedType) => this.serializer.Serialize(item, context, expectedType);
+        public void Serialize(object item, ref BinaryTokenStreamWriter writer, Type expectedType) => this.serializer.Serialize(item, ref writer, expectedType);
 
         /// <inheritdoc />
         public object Deserialize(Type expectedType, IDeserializationContext context) => this.serializer.Deserialize(expectedType, context);

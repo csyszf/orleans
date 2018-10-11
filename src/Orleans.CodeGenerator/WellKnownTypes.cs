@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Diagnostics.CodeAnalysis;
 using Microsoft.CodeAnalysis;
 
@@ -52,6 +52,7 @@ namespace Orleans.CodeGenerator
                 InvokeMethodRequest = Type("Orleans.CodeGeneration.InvokeMethodRequest"),
                 IOnDeserialized = Type("Orleans.Serialization.IOnDeserialized"),
                 ISerializationContext = Type("Orleans.Serialization.ISerializationContext"),
+                BinaryTokenStreamWriter = Type("Orleans.Serialization.BinaryTokenStreamWriter"),
                 ISystemTarget = Type("Orleans.ISystemTarget"),
                 MarshalByRefObject = Type("System.MarshalByRefObject"),
                 MethodInvokerAttribute = Type("Orleans.CodeGeneration.MethodInvokerAttribute"),
@@ -196,6 +197,7 @@ namespace Orleans.CodeGenerator
         public INamedTypeSymbol InvokeMethodRequest { get; private set; }
         public INamedTypeSymbol IOnDeserialized { get; private set; }
         public INamedTypeSymbol ISerializationContext { get; private set; }
+        public INamedTypeSymbol BinaryTokenStreamWriter { get; set; }
         public INamedTypeSymbol ISystemTarget { get; private set; }
         public INamedTypeSymbol MarshalByRefObject { get; private set; }
         public INamedTypeSymbol MethodInvokerAttribute { get; private set; }

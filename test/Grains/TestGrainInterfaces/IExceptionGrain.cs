@@ -71,15 +71,15 @@ namespace UnitTests.GrainInterfaces
         [CopierMethod]
         public static object DeepCopy(object original, ICopyContext context)
         {
-            var typed = (UndeserializableType) original;
+            var typed = (UndeserializableType)original;
             return new UndeserializableType(typed.Number);
         }
 
         [SerializerMethod]
-        public static void Serialize(object untypedInput, ISerializationContext context, Type expected)
+        public static void Serialize(object untypedInput, ref BinaryTokenStreamWriter writer, Type expected)
         {
-            var typed = (UndeserializableType) untypedInput;
-            context.StreamWriter.Write(typed.Number);
+            var typed = (UndeserializableType)untypedInput;
+            writer.Write(typed.Number);
         }
 
         [DeserializerMethod]
@@ -99,7 +99,7 @@ namespace UnitTests.GrainInterfaces
         }
 
         [SerializerMethod]
-        public static void Serialize(object untypedInput, ISerializationContext context, Type expected)
+        public static void Serialize(object untypedInput, ref BinaryTokenStreamWriter writer, Type expected)
         {
             throw new NotSupportedException(UndeserializableType.FailureMessage);
         }
