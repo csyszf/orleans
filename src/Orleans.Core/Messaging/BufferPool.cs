@@ -1,15 +1,15 @@
 using System;
 using System.Buffers;
 using System.Collections.Generic;
-using System.Runtime.CompilerServices;
 using Orleans.Configuration;
+
 namespace Orleans.Runtime
 {
     internal class BufferPool: MemoryPool<byte>
     {
         private readonly int minimumBufferSize;
         public static BufferPool GlobalPool;
-        public int Size
+        public int MinimumSize
         {
             get { return minimumBufferSize; }
         }
