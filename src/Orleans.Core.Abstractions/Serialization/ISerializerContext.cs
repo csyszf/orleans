@@ -34,12 +34,7 @@ namespace Orleans.Serialization
     public interface ISerializationContext : ISerializerContext
     {
         /// <summary>
-        /// Gets the stream writer.
-        /// </summary>
-        IBinaryTokenStreamWriter StreamWriter { get; }
-
-        /// <summary>
-        /// Records the provided object at the specified offset into <see cref="StreamWriter"/>.
+        /// Records the provided object at the specified offset into 
         /// </summary>
         /// <param name="original"></param>
         /// <param name="offset"></param>

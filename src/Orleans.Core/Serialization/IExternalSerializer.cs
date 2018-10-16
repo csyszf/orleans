@@ -30,9 +30,9 @@ namespace Orleans.Serialization
         /// Tries to serialize an item.
         /// </summary>
         /// <param name="item">The instance of the object being serialized</param>
-        /// <param name="context">The context in which the object is being serialized.</param>
+        /// <param name="writer">The writer in which the object is being serialized.</param>
         /// <param name="expectedType">The type that the deserializer will expect</param>
-        void Serialize(object item, ISerializationContext context, Type expectedType);
+        void Serialize(object item, BinaryTokenStreamWriterV2 writer, Type expectedType);
 
         /// <summary>
         /// Tries to deserialize an item.

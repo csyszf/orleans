@@ -53,11 +53,6 @@ namespace Orleans.Serialization
             }
         }
 
-        /// <summary>
-        /// Gets the serialization manager.
-        /// </summary>
-        public IBinaryTokenStreamWriter StreamWriter { get; set; }
-
         private readonly Dictionary<object, Record> processedObjects;
 
         public SerializationContext(SerializationManager serializationManager) : 

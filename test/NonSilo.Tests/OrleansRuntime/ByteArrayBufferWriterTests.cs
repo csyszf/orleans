@@ -26,9 +26,8 @@ namespace NonSilo.Tests.OrleansRuntime
                 while (span.Length > 0)
                 {
                     var buff = writer.GetSpan(item.Length);
-                    var writeBytes = span.Length;
-                    var toWrite = span.Slice(0, writeBytes);
-                    toWrite.CopyTo(buff);
+                    var writeBytes = Math.Min(span.Length, buff.Length);
+                    span.Slice(0, writeBytes).CopyTo(buff);
                     writer.Advance(writeBytes);
                     span = span.Slice(writeBytes);
                 }

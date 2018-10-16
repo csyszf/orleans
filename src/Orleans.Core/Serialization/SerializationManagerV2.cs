@@ -29,7 +29,7 @@ namespace Orleans.Serialization
     /// <summary>
     /// SerializationManager to oversee the Orleans serializer system.
     /// </summary>
-    public sealed class SerializationManager : IDisposable
+    public sealed class SerializationManagerV2 : IDisposable
     {
         private readonly HashSet<Type> registeredTypes;
         private readonly List<IExternalSerializer> externalSerializers;
@@ -80,7 +80,7 @@ namespace Orleans.Serialization
 
         internal IServiceProvider ServiceProvider => this.serviceProvider;
 
-        public SerializationManager(
+        public SerializationManagerV2(
             IServiceProvider serviceProvider,
             IOptions<SerializationProviderOptions> serializationProviderOptions,
             ILoggerFactory loggerFactory,
@@ -812,7 +812,12 @@ namespace Orleans.Serialization
             return null;
         }
 
-        public void Serialize(object raw, BinaryTokenStreamWriterV2 writer)
+        /// <summary>
+        /// Serialize the specified object, using Serializer functions previously registered for this type.
+        /// </summary>
+        /// <param name="raw">The input data to be serialized.</param>
+        /// <param name="stream">The output stream to write to.</param>
+        public void Serialize(object raw, IBinaryTokenStreamWriter stream)
         {
             Stopwatch timer = null;
             if (this.serializationStatistics.CollectSerializationStats)
@@ -824,8 +829,8 @@ namespace Orleans.Serialization
 
             var context = this.serializationContext.Value;
             context.Reset();
-            writer.Context = context;
-            SerializeInner(raw, writer, null);
+            context.StreamWriter = stream;
+            SerializeInner(raw, context, null);
             context.Reset();
             
             if (timer!=null)
@@ -835,14 +840,18 @@ namespace Orleans.Serialization
             }
         }
 
+        /// <summary>
+        /// Encodes the object to the provided binary token stream.
+        /// </summary>
+        /// <param name="obj">The input data to be serialized.</param>
+        /// <param name="writer">The serialization writer.</param>
         public static void SerializeInner<T>(T obj, BinaryTokenStreamWriterV2 writer) => SerializeInner(obj, writer, typeof(T));
 
-        [SuppressMessage("Microsoft.Usage", "CA2201:DoNotRaiseReservedExceptionTypes")]
         public static void SerializeInner(object obj, BinaryTokenStreamWriterV2 writer, Type expected)
         {
             var sm = writer.Context.GetSerializationManager();
+
             var context = writer.Context;
-            // Nulls get special handling
             if (obj == null)
             {
                 writer.WriteNull();
@@ -852,7 +861,6 @@ namespace Orleans.Serialization
             var t = obj.GetType();
             var typeInfo = t.GetTypeInfo();
 
-            // Enums are extra-special
             if (typeInfo.IsEnum)
             {
                 writer.WriteTypeHeader(t, expected);
@@ -861,13 +869,8 @@ namespace Orleans.Serialization
                 return;
             }
 
-            // Check for simple types
             if (writer.TryWriteSimpleObject(obj)) return;
 
-            // Check for primitives
-            // At this point, we're either an object or a non-trivial value type
-
-            // Start by checking to see if we're a back-reference, and recording us for possible future back-references if not
             if (!typeInfo.IsValueType)
             {
                 int reference = context.CheckObjectWhileSerializing(obj);
@@ -880,7 +883,6 @@ namespace Orleans.Serialization
                 context.RecordObject(obj);
             }
 
-            // If we're simply a plain old unadorned, undifferentiated object, life is easy
             if (t.TypeHandle.Equals(objectTypeHandle))
             {
                 writer.Write(SerializationTokenType.SpecifiedType);
@@ -888,7 +890,6 @@ namespace Orleans.Serialization
                 return;
             }
 
-            // Arrays get handled specially
             if (typeInfo.IsArray)
             {
                 var et = t.GetElementType();
@@ -900,50 +901,11 @@ namespace Orleans.Serialization
             if (sm.TryLookupExternalSerializer(t, out serializer))
             {
                 writer.WriteTypeHeader(t, expected);
-                serializer.Serialize(obj, writer, expected);
+                serializer.Serialize(obj, context, expected);
                 return;
             }
 
-            Serializer ser = sm.GetSerializer(t);
-            if (ser != null)
-            {
-                writer.WriteTypeHeader(t, expected);
-                ser(obj, context, expected);
-                return;
-            }
 
-            if (sm.TryLookupKeyedSerializer(t, out var keyedSerializer))
-            {
-                writer.Write((byte)SerializationTokenType.KeyedSerializer);
-                writer.Write((byte)keyedSerializer.SerializerId);
-                keyedSerializer.Serialize(obj, writer, expected);
-                return;
-            }
-
-            if (sm.fallbackSerializer.IsSupportedType(t))
-            {
-                sm.FallbackSerializer(obj, writer, expected);
-                return;
-            }
-
-            if (obj is Exception && !sm.fallbackSerializer.IsSupportedType(t))
-            {
-                // Exceptions should always be serializable, and thus handled by the prior if.
-                // In case someone creates a non-serializable exception, though, we don't want to 
-                // throw and return a serialization exception...
-                // Note that the "!t.IsSerializable" is redundant in this if, but it's there in case
-                // this code block moves.
-                var rawException = obj as Exception;
-                var foo = new Exception(String.Format("Non-serializable exception of type {0}: {1}" + Environment.NewLine + "at {2}",
-                                                      t.OrleansTypeName(), rawException.Message,
-                                                      rawException.StackTrace));
-                sm.FallbackSerializer(foo, writer, expected);
-                return;
-            }
-
-            throw new ArgumentException(
-                "No serializer found for object of type " + t.OrleansTypeKeyString() + " from assembly " + t.Assembly.FullName
-                + ". Perhaps you need to mark it [Serializable] or define a custom serializer for it?");
         }
 
         private static void WriteEnum(object obj, BinaryTokenStreamWriterV2 writer, Type type)
@@ -969,8 +931,6 @@ namespace Orleans.Serialization
         // We assume that all lower bounds are 0, since creating an array with lower bound !=0 is hard in .NET 4.0+
         private static void SerializeArray(Array array, BinaryTokenStreamWriterV2 writer, Type expected, Type et)
         {
-            var context = writer.Context;
-
             // First check for one of the optimized cases
             if (array.Rank == 1)
             {
@@ -1128,10 +1088,8 @@ namespace Orleans.Serialization
             try
             {
                 var context = this.serializationContext.Value;
-                context.Reset();
                 var writer = new BinaryTokenStreamWriterV2(output, context);
                 SerializeInner(raw, writer, null);
-                context.Reset();
                 result = output.Buffer.ToArray();
             }
             finally
@@ -1589,7 +1547,7 @@ namespace Orleans.Serialization
             return false;
         }
 
-        internal void FallbackSerializer(object raw, BinaryTokenStreamWriterV2 writer, Type t)
+        internal void FallbackSerializer(object raw, ISerializationContext context, Type t)
         {
             Stopwatch timer = null;
             if (this.serializationStatistics.CollectSerializationStats)
@@ -1599,8 +1557,8 @@ namespace Orleans.Serialization
                 serializationStatistics.FallbackSerializations.Increment();
             }
 
-            writer.Write(SerializationTokenType.Fallback);
-            fallbackSerializer.Serialize(raw, writer, t);
+            context.StreamWriter.Write(SerializationTokenType.Fallback);
+            fallbackSerializer.Serialize(raw, context, t);
 
             if (this.serializationStatistics.CollectSerializationStats)
             {
