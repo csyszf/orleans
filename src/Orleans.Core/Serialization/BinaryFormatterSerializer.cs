@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Reflection;
@@ -39,13 +39,8 @@ namespace Orleans.Serialization
             return ret;
         }
 
-        public void Serialize(object item, ISerializationContext context, Type expectedType)
+        public void Serialize(object item, BinaryTokenStreamWriterV2 writer, Type expectedType)
         {
-            var writer = context.StreamWriter;
-            if (writer == null)
-            {
-                throw new ArgumentNullException("writer");
-            }
 
             if (item == null)
             {
@@ -55,7 +50,7 @@ namespace Orleans.Serialization
 
             var formatter = new BinaryFormatter
             {
-                Context = new StreamingContext(StreamingContextStates.All, context)
+                Context = new StreamingContext(StreamingContextStates.All, writer.Context)
             };
             byte[] bytes;
             using (var memoryStream = new MemoryStream())

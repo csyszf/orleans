@@ -1,4 +1,4 @@
-﻿using Orleans;
+using Orleans;
 using Orleans.CodeGeneration;
 using Orleans.Serialization;
 using System;
@@ -64,12 +64,12 @@ namespace Tester.SerializationTests
         }
 
         [SerializerMethod]
-        public void Serialize(object obj, ISerializationContext context, Type expected)
+        public void Serialize(object obj, BinaryTokenStreamWriterV2 writer, Type expected)
         {
             AssertConstructorHasBeenCalled();
 
             CallCounter++;
-            context.GetSerializationManager().Serialize(((SimplePocoClass)obj).A, context.StreamWriter);
+            writer.Context.GetSerializationManager().Serialize(((SimplePocoClass)obj).A, writer);
         }
 
         [DeserializerMethod]

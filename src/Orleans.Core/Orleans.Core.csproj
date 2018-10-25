@@ -8,7 +8,7 @@
   <PropertyGroup>
     <AssemblyName>Orleans.Core</AssemblyName>
     <RootNamespace>Orleans</RootNamespace>
-    <OrleansBuildTimeCodeGen>true</OrleansBuildTimeCodeGen>
+    <!--<OrleansBuildTimeCodeGen>true</OrleansBuildTimeCodeGen>-->
   </PropertyGroup>
 
   <ItemGroup>
@@ -37,7 +37,6 @@
     <PackageReference Include="System.Diagnostics.Process" Version="$(SystemRuntimeVersion)" />
     <PackageReference Include="System.Diagnostics.TraceSource" Version="$(SystemRuntimeVersion)" />
     <PackageReference Include="System.Linq.Expressions" Version="$(SystemRuntimeVersion)" />
-    <PackageReference Include="System.Memory" Version="4.5.1" />
     <PackageReference Include="System.Net.NameResolution" Version="$(SystemRuntimeVersion)" />
     <PackageReference Include="System.Net.NetworkInformation" Version="$(SystemRuntimeVersion)" />
     <PackageReference Include="System.Reflection.Emit" Version="$(SystemRuntimeVersion)" />

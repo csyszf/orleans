@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Threading.Tasks;
 using Orleans.CodeGeneration;
 using Orleans.Serialization;
@@ -98,7 +98,7 @@ namespace Orleans
         }
 
         [SerializerMethod]
-        internal static void SerializeGrainCancellationTokenSource(object obj, ISerializationContext context, Type expected)
+        internal static void SerializeGrainCancellationTokenSource(object obj, BinaryTokenStreamWriterV2 context, Type expected)
         {
             throw new NotSupportedException("GrainCancellationTokenSource can not be serialized");
         }

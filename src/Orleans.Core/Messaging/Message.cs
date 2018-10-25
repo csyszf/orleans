@@ -1,4 +1,5 @@
 using System;
+using System.Buffers;
 using System.Collections.Generic;
 using System.Text;
 using Orleans.CodeGeneration;
@@ -480,29 +481,30 @@ namespace Orleans.Runtime
 
         public List<ArraySegment<byte>> Serialize(SerializationManager serializationManager, out int headerLengthOut, out int bodyLengthOut)
         {
-            var context = new SerializationContext(serializationManager)
-            {
-                StreamWriter = new BinaryTokenStreamWriter()
-            };
-            SerializationManager.SerializeMessageHeaders(Headers, context);
+            var output = new ByteArrayBufferWriter();
+            var context = new SerializationContext(serializationManager, output);
+            var writer = new BinaryTokenStreamWriterV2(context);
+            SerializationManager.SerializeMessageHeaders(Headers, writer);
 
             if (bodyBytes == null)
             {
-                var bodyStream = new BinaryTokenStreamWriter();
-                serializationManager.Serialize(bodyObject, bodyStream);
+                var bodyOutput = new ByteArrayBufferWriter();
+                var bodyContext = new SerializationContext(serializationManager, bodyOutput);
+                var bodyWriter = new BinaryTokenStreamWriterV2(bodyContext);
+                serializationManager.Serialize(bodyObject, bodyWriter);
                 // We don't bother to turn this into a byte array and save it in bodyBytes because Serialize only gets called on a message
                 // being sent off-box. In this case, the likelihood of needed to re-serialize is very low, and the cost of capturing the
                 // serialized bytes from the steam -- where they're a list of ArraySegment objects -- into an array of bytes is actually
                 // pretty high (an array allocation plus a bunch of copying).
-                bodyBytes = bodyStream.ToBytes();
+                bodyBytes = bodyOutput.GetSegmentList();
             }
 
             if (headerBytes != null)
             {
                 BufferPool.GlobalPool.Release(headerBytes);
             }
-            headerBytes = context.StreamWriter.ToBytes();
-            int headerLength = context.StreamWriter.CurrentOffset;
+            headerBytes = output.GetSegmentList();
+            int headerLength = writer.Context.CurrentOffset;
             int bodyLength = BufferLength(bodyBytes);
 
             var bytes = new List<ArraySegment<byte>>();
@@ -1135,11 +1137,10 @@ namespace Orleans.Runtime
             }
 
             [SerializerMethod]
-            public static void Serializer(object untypedInput, ISerializationContext context, Type expected)
+            public static void Serializer(object untypedInput, BinaryTokenStreamWriterV2 writer, Type expected)
             {
                 HeadersContainer input = (HeadersContainer)untypedInput;
                 var headers = input.GetHeadersMask();
-                var writer = context.StreamWriter;
                 writer.Write((int)headers);
                 if ((headers & Headers.CACHE_INVALIDATION_HEADER) != Headers.NONE)
                 {
@@ -1147,7 +1148,7 @@ namespace Orleans.Runtime
                     writer.Write(input.CacheInvalidationHeader.Count);
                     for (int i = 0; i < count; i++)
                     {
-                        WriteObj(context, typeof(ActivationAddress), input.CacheInvalidationHeader[i]);
+                        WriteObj(writer, typeof(ActivationAddress), input.CacheInvalidationHeader[i]);
                     }
                 }
 
@@ -1209,7 +1210,7 @@ namespace Orleans.Runtime
                     foreach (var d in requestData)
                     {
                         writer.Write(d.Key);
-                        SerializationManager.SerializeInner(d.Value, context, typeof(object));
+                        SerializationManager.SerializeInner(d.Value, writer, typeof(object));
                     }
                 }
 
@@ -1246,7 +1247,7 @@ namespace Orleans.Runtime
 
                 if ((headers & Headers.TARGET_OBSERVER) != Headers.NONE)
                 {
-                    WriteObj(context, typeof(GuidId), input.TargetObserverId);
+                    WriteObj(writer, typeof(GuidId), input.TargetObserverId);
                 }
 
                 if ((headers & Headers.CALL_CHAIN_ID) != Headers.NONE)
@@ -1260,7 +1261,7 @@ namespace Orleans.Runtime
                 }
 
                 if ((headers & Headers.TRANSACTION_INFO) != Headers.NONE)
-                    SerializationManager.SerializeInner(input.TransactionInfo, context, typeof(ITransactionInfo));
+                    SerializationManager.SerializeInner(input.TransactionInfo, writer, typeof(ITransactionInfo));
             }
 
             [DeserializerMethod]
@@ -1386,10 +1387,10 @@ namespace Orleans.Runtime
                 return stream.ReadByte() == (byte) SerializationTokenType.True;
             }
 
-            private static void WriteObj(ISerializationContext context, Type type, object input)
+            private static void WriteObj(BinaryTokenStreamWriterV2 writer, Type type, object input)
             {
-                var ser = context.GetSerializationManager().GetSerializer(type);
-                ser.Invoke(input, context, type);
+                var ser = writer.Context.GetSerializationManager().GetSerializer(type);
+                ser.Invoke(input, writer, type);
             }
 
             private static object ReadObj(Type t, IDeserializationContext context)

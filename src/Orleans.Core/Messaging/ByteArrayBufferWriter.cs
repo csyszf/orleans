@@ -1,6 +1,8 @@
 using System;
 using System.Buffers;
+using System.Collections.Generic;
 using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
 
 namespace Orleans.Runtime
 {
@@ -117,6 +119,18 @@ namespace Orleans.Runtime
             // if bytesWritten is zero, these do nothing
             _writingHead.End += bytesWritten;
             _currentWriteLength += bytesWritten;
+        }
+
+        public List<ArraySegment<byte>> GetSegmentList()
+        {
+            var buffer = this.Buffer;
+            var list = new List<ArraySegment<byte>>();
+            foreach (var mem in buffer)
+            {
+                MemoryMarshal.TryGetArray(mem, out var seg);
+                list.Add(seg);
+            }
+            return list;
         }
 
     }

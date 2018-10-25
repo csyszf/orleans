@@ -9,6 +9,7 @@ using Orleans.Runtime;
 
 namespace Orleans.Serialization
 {
+    using System.Buffers;
     using Orleans.Providers;
 
     public class OrleansJsonSerializer : IExternalSerializer
@@ -107,19 +108,20 @@ namespace Orleans.Serialization
                 return null;
             }
 
-            var serializationContext = new SerializationContext(context.GetSerializationManager())
-            {
-                StreamWriter = new BinaryTokenStreamWriter()
-            };
-            
-            Serialize(source, serializationContext, source.GetType());
+            var output = new ByteArrayBufferWriter();
+            var serializationContext = new SerializationContext(context.GetSerializationManager(), output);
+            var writer = new BinaryTokenStreamWriterV2(serializationContext);
+
+
+
+            Serialize(source, writer, source.GetType());
             var deserializationContext = new DeserializationContext(context.GetSerializationManager())
             {
-                StreamReader = new BinaryTokenStreamReader(serializationContext.StreamWriter.ToBytes())
+                StreamReader = new BinaryTokenStreamReader(output.Buffer.ToArray())
             };
 
             var retVal = Deserialize(source.GetType(), deserializationContext);
-            serializationContext.StreamWriter.ReleaseBuffers();
+            output.ReleaseBuffers();
             return retVal;
         }
 
@@ -140,16 +142,10 @@ namespace Orleans.Serialization
         /// Serializes an object to a binary stream
         /// </summary>
         /// <param name="item">The object to serialize</param>
-        /// <param name="context">The serialization context.</param>
+        /// <param name="writer">The serialization writer.</param>
         /// <param name="expectedType">The type the deserializer should expect</param>
-        public void Serialize(object item, ISerializationContext context, Type expectedType)
+        public void Serialize(object item, BinaryTokenStreamWriterV2 writer, Type expectedType)
         {
-            if (context == null)
-            {
-                throw new ArgumentNullException(nameof(context));
-            }
-
-            var writer = context.StreamWriter;
             if (item == null)
             {
                 writer.WriteNull();

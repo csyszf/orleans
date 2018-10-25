@@ -1,4 +1,5 @@
 using System;
+using System.Buffers;
 using System.Collections.Generic;
 using System.Reflection;
 
@@ -8,20 +9,25 @@ namespace Orleans.Serialization
     {
         public static void RecordObject(this ISerializationContext context, object original)
         {
-            context.RecordObject(original, context.CurrentOffset);
+            context.RecordObject(original);
         }
 
         public static ISerializationContext CreateNestedContext(
             this ISerializationContext context,
             int position,
-            BinaryTokenStreamWriter writer)
+            IBufferWriter<byte> output)
         {
-            return new SerializationContext.NestedSerializationContext(context, position, writer);
+            return new SerializationContext.NestedSerializationContext(context, position, output);
         }
 
-        public static void SerializeInner<T>(this ISerializationContext @this, T obj)
+        public static void SerializeInner<T>(this BinaryTokenStreamWriterV2 @this, T obj)
         {
-            @this.SerializeInner(obj, typeof(T));
+            SerializationManager.SerializeInner(obj, @this, typeof(T));
+        }
+
+        public static void SerializeInner(this BinaryTokenStreamWriterV2 @this, object obj, Type expected)
+        {
+            SerializationManager.SerializeInner(obj, @this, expected);
         }
     }
 
@@ -54,15 +60,18 @@ namespace Orleans.Serialization
         }
 
         /// <summary>
-        /// Gets the serialization manager.
+        /// Gets the output buffer writer.
         /// </summary>
-        public IBinaryTokenStreamWriter StreamWriter { get; set; }
+        public IBufferWriter<byte> BufferWriter { get; set; }
+
+        public uint CurrentReferenceId { get; set; }
 
         private readonly Dictionary<object, Record> processedObjects;
 
-        public SerializationContext(SerializationManager serializationManager) : 
+        public SerializationContext(SerializationManager serializationManager, IBufferWriter<byte> output) :
             base(serializationManager)
         {
+            BufferWriter = output;
             processedObjects = new Dictionary<object, Record>(ReferenceEqualsComparer.Instance);
         }
 
@@ -117,7 +126,7 @@ namespace Orleans.Serialization
             return -1;
         }
 
-        public int CurrentOffset => this.StreamWriter.CurrentOffset;
+        public int CurrentOffset { get; set; }
 
         public override object AdditionalContext => this.SerializationManager.RuntimeClient;
 
@@ -126,14 +135,14 @@ namespace Orleans.Serialization
             return SerializationManager.DeepCopyInner(original, this);
         }
 
-        public void SerializeInner(object obj, Type expected)
+        public void SerializeInner(object obj, BinaryTokenStreamWriterV2 writer, Type expected)
         {
-            SerializationManager.SerializeInner(obj, this, expected);
+            SerializationManager.SerializeInner(obj, writer, expected);
         }
 
         internal class NestedSerializationContext : ISerializationContext
         {
-            private readonly int initialOffset;
+            //private readonly int initialOffset;
             private readonly ISerializationContext parentContext;
 
             /// <summary>
@@ -141,19 +150,18 @@ namespace Orleans.Serialization
             /// </summary>
             /// <param name="parent">The parent context.</param>
             /// <param name="offset">The absolute offset at which this stream begins.</param>
-            /// <param name="writer">The writer.</param>
-            public NestedSerializationContext(ISerializationContext parent, int offset, BinaryTokenStreamWriter writer)
+            /// <param name="output">The output buffer.</param>
+            public NestedSerializationContext(ISerializationContext parent, int offset, IBufferWriter<byte> output)
             {
                 this.parentContext = parent;
-                this.initialOffset = offset;
-                this.StreamWriter = writer;
+                this.BufferWriter = output;
+                this.CurrentOffset = offset;
             }
-            
+
             public IServiceProvider ServiceProvider => this.parentContext.ServiceProvider;
             public object AdditionalContext => this.parentContext.ServiceProvider;
-            public IBinaryTokenStreamWriter StreamWriter { get; }
-            public int CurrentOffset => this.initialOffset + this.StreamWriter.CurrentOffset;
-            public void SerializeInner(object obj, Type expected) => SerializationManager.SerializeInner(obj, this, expected);
+            public IBufferWriter<byte> BufferWriter { get; }
+            public int CurrentOffset { get; set; }
             public void RecordObject(object original, int offset) => this.parentContext.RecordObject(original, offset);
             public int CheckObjectWhileSerializing(object raw) => this.parentContext.CheckObjectWhileSerializing(raw);
         }

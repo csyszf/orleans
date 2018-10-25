@@ -1,11 +1,13 @@
-﻿using System.Runtime.Serialization;
+using System.Runtime.Serialization;
 using Orleans.Utilities;
 
 namespace Orleans.Serialization
 {
     using System;
+    using System.Buffers;
     using System.Collections.Generic;
     using System.Reflection;
+    using Orleans.Runtime;
 
     /// <summary>
     /// Methods for serializing instances of <see cref="Exception"/> and its subclasses.
@@ -75,10 +77,9 @@ namespace Orleans.Serialization
             this.serializers[typeof(RemoteNonDeserializableException)] = this.fallbackBaseExceptionSerializer;
         }
 
-        public void Serialize(object item, ISerializationContext outerContext, Type expectedType)
+        public void Serialize(object item, BinaryTokenStreamWriterV2 outerWriter, Type expectedType)
         {
-            var outerWriter = outerContext.StreamWriter;
-            
+            var outerContext = outerWriter.Context;
             var actualType = item.GetType();
 
             // To support loss-free serialization where possible, instances of the fallback exception type are serialized in a
@@ -86,7 +87,7 @@ namespace Orleans.Serialization
             var fallbackException = item as RemoteNonDeserializableException;
             if (fallbackException != null)
             {
-                this.ReserializeFallback(fallbackException, outerContext);
+                this.ReserializeFallback(fallbackException, outerWriter);
                 return;
             }
             
@@ -95,15 +96,17 @@ namespace Orleans.Serialization
 
             // Create a nested context which will be written to the outer context at an int-length offset from the current position.
             // This is because the inner context will be copied with a length prefix to the outer context.
-            var innerContext = outerContext.CreateNestedContext(position: outerContext.CurrentOffset + sizeof(int), writer: new BinaryTokenStreamWriter());
+            var innerOutput = new ByteArrayBufferWriter();
+            var innerContext = outerContext.CreateNestedContext(position: outerContext.CurrentOffset + sizeof(int), innerOutput);
+            var innerWriter = new BinaryTokenStreamWriterV2(innerContext);
 
             // Serialize the exception itself.
             var methods = this.GetSerializerMethods(actualType);
-            methods.Serialize(item, innerContext, null);
+            methods.Serialize(item, innerWriter, null);
 
             // Write the serialized exception to the output stream.
-            outerContext.StreamWriter.Write(innerContext.StreamWriter.CurrentOffset);
-            outerContext.StreamWriter.Write(innerContext.StreamWriter.ToBytes());
+            outerWriter.Write(innerWriter.Buffer.Length);
+            outerWriter.Write(innerOutput.Buffer);
         }
 
         public object Deserialize(Type expectedType, IDeserializationContext outerContext)
@@ -175,9 +178,9 @@ namespace Orleans.Serialization
             return original;
         }
 
-        private void ReserializeFallback(RemoteNonDeserializableException fallbackException, ISerializationContext outerContext)
+        private void ReserializeFallback(RemoteNonDeserializableException fallbackException, BinaryTokenStreamWriterV2 outerWriter)
         {
-            var outerWriter = outerContext.StreamWriter;
+            var outerContext = outerWriter.Context;
 
             // Write the type name directly.
             var key = new TypeSerializer.TypeKey(fallbackException.OriginalTypeName);
@@ -185,16 +188,18 @@ namespace Orleans.Serialization
 
             // Create a nested context which will be written to the outer context at an int-length offset from the current position.
             // This is because the inner context will be copied with a length prefix to the outer context.
-            var innerContext = outerContext.CreateNestedContext(sizeof(int), new BinaryTokenStreamWriter());
+            var innerBuffer = new ByteArrayBufferWriter();
+            var innerContext = outerContext.CreateNestedContext(sizeof(int), innerBuffer);
+            var innerWriter = new BinaryTokenStreamWriterV2(innerContext);
 
             // Serialize the only accepted fields from the base Exception class.
-            this.fallbackBaseExceptionSerializer.Serialize(fallbackException, innerContext, null);
+            this.fallbackBaseExceptionSerializer.Serialize(fallbackException, innerWriter, null);
 
             // Write the length of the serialized exception, then write the serialized bytes.
             var additionalDataLength = fallbackException.AdditionalData?.Length ?? 0;
-            outerWriter.Write(innerContext.StreamWriter.CurrentOffset + additionalDataLength);
-            outerWriter.Write(innerContext.StreamWriter.ToBytes());
-            
+            outerWriter.Write((int)innerBuffer.Buffer.Length + additionalDataLength);
+            outerWriter.Write(innerBuffer.Buffer);
+
             if (additionalDataLength > 0)
             {
                 outerWriter.Write(fallbackException.AdditionalData);

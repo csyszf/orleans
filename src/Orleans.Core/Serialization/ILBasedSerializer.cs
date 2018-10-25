@@ -1,4 +1,4 @@
-﻿namespace Orleans.Serialization
+namespace Orleans.Serialization
 {
     using System;
     using System.Collections.Concurrent;
@@ -63,7 +63,7 @@
                 new SerializerMethods(
                     (original, context) => original,
                     (original, writer, expected) => {
-                        var writer1 = writer.StreamWriter;
+                        var writer1 = writer;
                         this.typeSerializer.WriteNamedType((Type)original, writer1);
                     },
                     (expected, reader) =>
@@ -91,17 +91,17 @@
         }
 
         /// <inheritdoc />
-        public void Serialize(object item, ISerializationContext context, Type expectedType)
+        public void Serialize(object item, BinaryTokenStreamWriterV2 writer, Type expectedType)
         {
             if (item == null)
             {
-                context.StreamWriter.Write((byte)ILSerializerTypeToken.Null);
+                writer.Write((byte)ILSerializerTypeToken.Null);
                 return;
             }
 
             var actualType = item.GetType();
-            this.WriteType(actualType, expectedType, context);
-            this.serializers.GetOrAdd(actualType, this.generateSerializer).Methods.Serialize(item, context, expectedType);
+            this.WriteType(actualType, expectedType, writer);
+            this.serializers.GetOrAdd(actualType, this.generateSerializer).Methods.Serialize(item, writer, expectedType);
         }
 
         /// <inheritdoc />
@@ -115,22 +115,22 @@
                        .Methods.Deserialize(expectedType, context);
         }
 
-        private void WriteType(Type actualType, Type expectedType, ISerializationContext context)
+        private void WriteType(Type actualType, Type expectedType, BinaryTokenStreamWriterV2 writer)
         {
             if (ExceptionType.IsAssignableFrom(actualType))
             {
                 // Exceptions are always serialized using a special-purpose serializer, even if the actual and expected
                 // types match. That serializer also writes its own type header.
-                context.StreamWriter.Write((byte) ILSerializerTypeToken.Exception);
+                writer.Write((byte) ILSerializerTypeToken.Exception);
             }
             else if (actualType == expectedType)
             {
-                context.StreamWriter.Write((byte) ILSerializerTypeToken.ExpectedType);
+                writer.Write((byte) ILSerializerTypeToken.ExpectedType);
             }
             else
             {
-                context.StreamWriter.Write((byte) ILSerializerTypeToken.NamedType);
-                this.typeSerializer.WriteNamedType(actualType, context.StreamWriter);
+                writer.Write((byte) ILSerializerTypeToken.NamedType);
+                this.typeSerializer.WriteNamedType(actualType, writer);
             }
         }
 

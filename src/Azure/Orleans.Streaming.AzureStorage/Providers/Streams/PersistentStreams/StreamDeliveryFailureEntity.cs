@@ -1,5 +1,7 @@
 using System;
+using System.Buffers;
 using Microsoft.WindowsAzure.Storage.Table;
+using Orleans.Runtime;
 using Orleans.Serialization;
 using Orleans.Streams;
 
@@ -96,10 +98,12 @@ namespace Orleans.Providers.Streams.PersistentStreams
 
         private static byte[] GetTokenBytes(SerializationManager serializationManager, StreamSequenceToken token)
         {
-            var bodyStream = new BinaryTokenStreamWriter();
-            serializationManager.Serialize(token, bodyStream);
-            var result = bodyStream.ToByteArray();
-            bodyStream.ReleaseBuffers();
+            var buffer = new ByteArrayBufferWriter();
+            var context = new SerializationContext(serializationManager, buffer);
+            var writer = new BinaryTokenStreamWriterV2(context);
+            serializationManager.Serialize(token, writer);
+            var result = buffer.Buffer.ToArray();
+            buffer.ReleaseBuffers();
             return result;
         }
 

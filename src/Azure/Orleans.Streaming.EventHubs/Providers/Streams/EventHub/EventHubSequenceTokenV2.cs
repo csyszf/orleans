@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using Orleans.CodeGeneration;
 using Orleans.Serialization;
 
@@ -51,13 +51,12 @@ namespace Orleans.ServiceBus.Providers
         /// Serialize the event sequence token.
         /// </summary>
         /// <param name="untypedInput">The object to serialize.</param>
-        /// <param name="context">The serialization context.</param>
+        /// <param name="writer">The serialization writer.</param>
         /// <param name="expected">The expected type.</param>
         [SerializerMethod]
-        public static void Serialize(object untypedInput, ISerializationContext context, Type expected)
+        public static void Serialize(object untypedInput, BinaryTokenStreamWriterV2 writer, Type expected)
         {
             var typed = untypedInput as EventHubSequenceTokenV2;
-            var writer = context.StreamWriter;
             if (typed == null)
             {
                 writer.WriteNull();

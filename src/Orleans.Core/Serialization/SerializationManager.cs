@@ -22,6 +22,7 @@ using Orleans.Configuration;
 using Orleans.Runtime;
 using Orleans.Metadata;
 using Orleans.Utilities;
+using System.Buffers;
 
 namespace Orleans.Serialization
 {
@@ -88,7 +89,7 @@ namespace Orleans.Serialization
             int largeMessageWarningThreshold)
         {
             this.LargeObjectSizeThreshold = largeMessageWarningThreshold;
-            this.serializationContext = new ThreadLocal<SerializationContext>(() => new SerializationContext(this));
+            this.serializationContext = new ThreadLocal<SerializationContext>(() => new SerializationContext(this, new ByteArrayBufferWriter()));
             this.deserializationContext = new ThreadLocal<DeserializationContext>(() => new DeserializationContext(this));
 
             logger = loggerFactory.CreateLogger<SerializationManager>();
@@ -374,10 +375,10 @@ namespace Orleans.Serialization
                         return concrete.DeepCopy(obj, context);
                     }
 
-                    void SerializeGeneric(object obj, ISerializationContext context, Type exp)
+                    void SerializeGeneric(object obj, BinaryTokenStreamWriterV2 writer, Type exp)
                     {
                         var concrete = this.RegisterConcreteSerializer(obj.GetType(), serializerType);
-                        concrete.Serialize(obj, context, exp);
+                        concrete.Serialize(obj, writer, exp);
                     }
 
                     object DeserializeGeneric(Type expected, IDeserializationContext context)
@@ -815,8 +816,8 @@ namespace Orleans.Serialization
         /// Serialize the specified object, using Serializer functions previously registered for this type.
         /// </summary>
         /// <param name="raw">The input data to be serialized.</param>
-        /// <param name="stream">The output stream to write to.</param>
-        public void Serialize(object raw, IBinaryTokenStreamWriter stream)
+        /// <param name="writer">The output stream to write to.</param>
+        public void Serialize(object raw, BinaryTokenStreamWriterV2 writer)
         {
             Stopwatch timer = null;
             if (this.serializationStatistics.CollectSerializationStats)
@@ -826,11 +827,11 @@ namespace Orleans.Serialization
                 serializationStatistics.Serializations.Increment();
             }
 
-            var context = this.serializationContext.Value;
-            context.Reset();
-            context.StreamWriter = stream;
-            SerializeInner(raw, context, null);
-            context.Reset();
+            var context = writer.Context;
+            var sc = context as SerializationContext;
+            sc?.Reset();
+            SerializeInner(raw, writer, null);
+            sc?.Reset();
             
             if (timer!=null)
             {
@@ -843,20 +844,20 @@ namespace Orleans.Serialization
         /// Encodes the object to the provided binary token stream.
         /// </summary>
         /// <param name="obj">The input data to be serialized.</param>
-        /// <param name="context">The serialization context.</param>
-        public static void SerializeInner<T>(T obj, ISerializationContext context) => SerializeInner(obj, context, typeof(T));
+        /// <param name="writer">The serialization context.</param>
+        public static void SerializeInner<T>(T obj, BinaryTokenStreamWriterV2 writer) => SerializeInner(obj, writer, typeof(T));
 
         /// <summary>
         /// Encodes the object to the provided binary token stream.
         /// </summary>
         /// <param name="obj">The input data to be serialized.</param>
-        /// <param name="context">The serialization context.</param>
+        /// <param name="writer">The serialization context.</param>
         /// <param name="expected">Current expected Type on this stream.</param>
         [SuppressMessage("Microsoft.Usage", "CA2201:DoNotRaiseReservedExceptionTypes")]
-        public static void SerializeInner(object obj, ISerializationContext context, Type expected)
+        public static void SerializeInner(object obj, BinaryTokenStreamWriterV2 writer, Type expected)
         {
+            var context = writer.Context;
             var sm = context.GetSerializationManager();
-            var writer = context.StreamWriter;
 
             // Nulls get special handling
             if (obj == null)
@@ -893,7 +894,7 @@ namespace Orleans.Serialization
                     return;
                 }
 
-                context.RecordObject(obj);
+                context.RecordObject(obj, context.CurrentOffset);
             }
 
             // If we're simply a plain old unadorned, undifferentiated object, life is easy
@@ -908,7 +909,7 @@ namespace Orleans.Serialization
             if (typeInfo.IsArray)
             {
                 var et = t.GetElementType();
-                SerializeArray((Array)obj, context, expected, et);
+                SerializeArray((Array)obj, writer, expected, et);
                 return;
             }
 
@@ -916,7 +917,7 @@ namespace Orleans.Serialization
             if (sm.TryLookupExternalSerializer(t, out serializer))
             {
                 writer.WriteTypeHeader(t, expected);
-                serializer.Serialize(obj, context, expected);
+                serializer.Serialize(obj, writer, expected);
                 return;
             }
 
@@ -924,7 +925,7 @@ namespace Orleans.Serialization
             if (ser != null)
             {
                 writer.WriteTypeHeader(t, expected);
-                ser(obj, context, expected);
+                ser(obj, writer, expected);
                 return;
             }
 
@@ -932,13 +933,13 @@ namespace Orleans.Serialization
             {
                 writer.Write((byte)SerializationTokenType.KeyedSerializer);
                 writer.Write((byte)keyedSerializer.SerializerId);
-                keyedSerializer.Serialize(obj, context, expected);
+                keyedSerializer.Serialize(obj, writer, expected);
                 return;
             }
 
             if (sm.fallbackSerializer.IsSupportedType(t))
             {
-                sm.FallbackSerializer(obj, context, expected);
+                sm.FallbackSerializer(obj, writer, expected);
                 return;
             }
 
@@ -953,7 +954,7 @@ namespace Orleans.Serialization
                 var foo = new Exception(String.Format("Non-serializable exception of type {0}: {1}" + Environment.NewLine + "at {2}",
                                                       t.OrleansTypeName(), rawException.Message,
                                                       rawException.StackTrace));
-                sm.FallbackSerializer(foo, context, expected);
+                sm.FallbackSerializer(foo, writer, expected);
                 return;
             }
 
@@ -962,13 +963,13 @@ namespace Orleans.Serialization
                 + ". Perhaps you need to mark it [Serializable] or define a custom serializer for it?");
         }
 
-        private static void WriteEnum(object obj, IBinaryTokenStreamWriter stream, Type type)
+        private static void WriteEnum(object obj, BinaryTokenStreamWriterV2 writer, Type type)
         {
             var t = Enum.GetUnderlyingType(type).TypeHandle;
-            if (t.Equals(byteTypeHandle) || t.Equals(sbyteTypeHandle)) stream.Write(Convert.ToByte(obj));
-            else if (t.Equals(shortTypeHandle) || t.Equals(ushortTypeHandle)) stream.Write(Convert.ToInt16(obj));
-            else if (t.Equals(intTypeHandle) || t.Equals(uintTypeHandle)) stream.Write(Convert.ToInt32(obj));
-            else if (t.Equals(longTypeHandle) || t.Equals(ulongTypeHandle)) stream.Write(Convert.ToInt64(obj));
+            if (t.Equals(byteTypeHandle) || t.Equals(sbyteTypeHandle)) writer.Write(Convert.ToByte(obj));
+            else if (t.Equals(shortTypeHandle) || t.Equals(ushortTypeHandle)) writer.Write(Convert.ToInt16(obj));
+            else if (t.Equals(intTypeHandle) || t.Equals(uintTypeHandle)) writer.Write(Convert.ToInt32(obj));
+            else if (t.Equals(longTypeHandle) || t.Equals(ulongTypeHandle)) writer.Write(Convert.ToInt64(obj));
             else throw new NotSupportedException($"Serialization of type {type.GetParseableName()} is not supported.");
         }
 
@@ -983,9 +984,9 @@ namespace Orleans.Serialization
         }
 
         // We assume that all lower bounds are 0, since creating an array with lower bound !=0 is hard in .NET 4.0+
-        private static void SerializeArray(Array array, ISerializationContext context, Type expected, Type et)
+        private static void SerializeArray(Array array, BinaryTokenStreamWriterV2 writer, Type expected, Type et)
         {
-            var writer = context.StreamWriter;
+            var context = writer.Context;
 
             // First check for one of the optimized cases
             if (array.Rank == 1)
@@ -1102,13 +1103,13 @@ namespace Orleans.Serialization
             if (rank == 1)
             {
                 for (int i = 0; i < lengths[0]; i++)
-                    SerializeInner(array.GetValue(i), context, et);
+                    SerializeInner(array.GetValue(i), writer, et);
             }
             else if (rank == 2)
             {
                 for (int i = 0; i < lengths[0]; i++)
                     for (int j = 0; j < lengths[1]; j++)
-                        SerializeInner(array.GetValue(i, j), context, et);
+                        SerializeInner(array.GetValue(i, j), writer, et);
             }
             else
             {
@@ -1127,7 +1128,7 @@ namespace Orleans.Serialization
                         k = k - offset * sizes[n];
                         index[n] = offset;
                     }
-                    SerializeInner(array.GetValue(index), context, et);
+                    SerializeInner(array.GetValue(index), writer, et);
                 }
             }
         }
@@ -1139,20 +1140,21 @@ namespace Orleans.Serialization
         /// <returns>Object of the required Type, rehydrated from the input stream.</returns>
         public byte[] SerializeToByteArray(object raw)
         {
-            var stream = new BinaryTokenStreamWriter();
+            ByteArrayBufferWriter output = null;
             byte[] result;
             try
             {
                 var context = this.serializationContext.Value;
+                output = (ByteArrayBufferWriter) context.BufferWriter;
+                var writer = new BinaryTokenStreamWriterV2(context);
                 context.Reset();
-                context.StreamWriter = stream;
-                SerializeInner(raw, context, null);
+                SerializeInner(raw, writer, null);
                 context.Reset();
-                result = stream.ToByteArray();
+                result = output.Buffer.ToArray();
             }
             finally
             {
-                stream.ReleaseBuffers();
+                output.ReleaseBuffers();
             }
             return result;
         }
@@ -1510,9 +1512,9 @@ namespace Orleans.Serialization
             return result;
         }
 
-        internal static void SerializeMessageHeaders(Message.HeadersContainer headers, SerializationContext context)
+        internal static void SerializeMessageHeaders(Message.HeadersContainer headers, BinaryTokenStreamWriterV2 writer)
         {
-            var sm = context.SerializationManager;
+            var sm = writer.Context.GetSerializationManager();
             Stopwatch timer = null;
             if (sm.serializationStatistics.CollectSerializationStats)
             {
@@ -1521,7 +1523,7 @@ namespace Orleans.Serialization
             }
 
             var ser = sm.GetSerializer(typeof(Message.HeadersContainer));
-            ser(headers, context, typeof(Message.HeadersContainer));
+            ser(headers, writer, typeof(Message.HeadersContainer));
 
             if (timer != null)
             {
@@ -1605,7 +1607,7 @@ namespace Orleans.Serialization
             return false;
         }
 
-        internal void FallbackSerializer(object raw, ISerializationContext context, Type t)
+        internal void FallbackSerializer(object raw, BinaryTokenStreamWriterV2 writer, Type t)
         {
             Stopwatch timer = null;
             if (this.serializationStatistics.CollectSerializationStats)
@@ -1615,8 +1617,8 @@ namespace Orleans.Serialization
                 serializationStatistics.FallbackSerializations.Increment();
             }
 
-            context.StreamWriter.Write(SerializationTokenType.Fallback);
-            fallbackSerializer.Serialize(raw, context, t);
+            writer.Write(SerializationTokenType.Fallback);
+            fallbackSerializer.Serialize(raw, writer, t);
 
             if (this.serializationStatistics.CollectSerializationStats)
             {

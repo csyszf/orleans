@@ -1,7 +1,9 @@
-﻿using System;
+using System;
+using System.Buffers;
 using System.Collections.Generic;
 using System.Linq;
 using Microsoft.Azure.EventHubs;
+using Orleans.Runtime;
 using Orleans.Serialization;
 
 namespace Orleans.ServiceBus.Providers
@@ -47,10 +49,12 @@ namespace Orleans.ServiceBus.Providers
         /// <returns></returns>
         public static byte[] SerializeProperties(this EventData eventData, SerializationManager serializationManager)
         {
-            var writeStream = new BinaryTokenStreamWriter();
-            serializationManager.Serialize(eventData.Properties.Where(kvp => !SkipProperties.Contains(kvp.Key)).ToList(), writeStream);
-            var result = writeStream.ToByteArray();
-            writeStream.ReleaseBuffers();
+            var buffer = new ByteArrayBufferWriter();
+            var context = new SerializationContext(serializationManager, buffer);
+            var writer = new BinaryTokenStreamWriterV2(context);
+            serializationManager.Serialize(eventData.Properties.Where(kvp => !SkipProperties.Contains(kvp.Key)).ToList(), writer);
+            var result = buffer.Buffer.ToArray();
+            buffer.ReleaseBuffers();
             return result;
         }
 

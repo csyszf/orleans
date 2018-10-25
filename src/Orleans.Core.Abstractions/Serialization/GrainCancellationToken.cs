@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Concurrent;
 using System.Linq;
 using System.Threading;
@@ -98,11 +98,10 @@ namespace Orleans
         }
 
         [SerializerMethod]
-        internal static void SerializeGrainCancellationToken(object obj, ISerializationContext context, Type expected)
+        internal static void SerializeGrainCancellationToken(object obj, BinaryTokenStreamWriterV2 writer, Type expected)
         {
             var ctw = (GrainCancellationToken)obj;
             var canceled = ctw.CancellationToken.IsCancellationRequested;
-            var writer = context.StreamWriter;
             writer.Write(canceled);
             writer.Write(ctw.Id);
         }

@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using Orleans.CodeGeneration;
 using Orleans.Runtime;
 
@@ -10,9 +10,9 @@ namespace Orleans.Serialization
         /// <summary> Serializer function for grain reference.</summary>
         /// <seealso cref="SerializationManager"/>
         [SerializerMethod]
-        protected internal static void SerializeGrainReference(object obj, ISerializationContext context, Type expected)
+        protected internal static void SerializeGrainReference(object obj, BinaryTokenStreamWriterV2 writer, Type expected)
         {
-            var writer = context.StreamWriter;
+            var context = writer.Context;
             var input = (GrainReference)obj;
             writer.Write(input.GrainId);
             if (input.IsSystemTarget)
@@ -27,7 +27,7 @@ namespace Orleans.Serialization
 
             if (input.IsObserverReference)
             {
-                input.ObserverId.SerializeToStream(writer);
+                writer.Write(input.ObserverId.Guid);
             }
 
             // store as null, serialize as empty.

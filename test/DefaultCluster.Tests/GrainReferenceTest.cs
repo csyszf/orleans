@@ -229,7 +229,7 @@ namespace DefaultCluster.Tests.General
             {
                 var formatter = new BinaryFormatter
                 {
-                    Context = new StreamingContext(StreamingContextStates.All, new SerializationContext(this.HostedCluster.SerializationManager))
+                    Context = new StreamingContext(StreamingContextStates.All, new SerializationContext(this.HostedCluster.SerializationManager, new ByteArrayBufferWriter()))
                 };
                 formatter.Serialize(memoryStream, obj);
                 memoryStream.Flush();

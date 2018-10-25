@@ -76,10 +76,10 @@ namespace UnitTests.GrainInterfaces
         }
 
         [SerializerMethod]
-        public static void Serialize(object untypedInput, ISerializationContext context, Type expected)
+        public static void Serialize(object untypedInput, BinaryTokenStreamWriterV2 writer, Type expected)
         {
-            var typed = (UndeserializableType) untypedInput;
-            context.StreamWriter.Write(typed.Number);
+            var typed = (UndeserializableType)untypedInput;
+            writer.Write(typed.Number);
         }
 
         [DeserializerMethod]

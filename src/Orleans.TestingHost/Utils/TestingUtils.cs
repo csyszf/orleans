@@ -8,6 +8,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
 using Orleans.Logging;
+using Orleans.Runtime;
 using Orleans.Serialization;
 
 namespace Orleans.TestingHost.Utils
@@ -135,7 +136,7 @@ namespace Orleans.TestingHost.Utils
         {
             IFormatter formatter = new BinaryFormatter();
             MemoryStream stream = new MemoryStream(new byte[100000], true);
-            formatter.Context = new StreamingContext(StreamingContextStates.All, new SerializationContext(serializationManager));
+            formatter.Context = new StreamingContext(StreamingContextStates.All, new SerializationContext(serializationManager, new ByteArrayBufferWriter()));
             formatter.Serialize(stream, input);
             stream.Position = 0;
             T output = (T)formatter.Deserialize(stream);

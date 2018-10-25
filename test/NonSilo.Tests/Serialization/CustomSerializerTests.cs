@@ -1,4 +1,6 @@
-﻿using Orleans.Serialization;
+using System.Buffers;
+using Orleans.Runtime;
+using Orleans.Serialization;
 using TestExtensions;
 using UnitTests.GrainInterfaces;
 using UnitTests.Grains;
@@ -28,11 +30,13 @@ namespace UnitTests.Serialization
         public void Serialize_CustomSerializer()
         {
             var original = new ClassWithCustomSerializer() { IntProperty = -3, StringProperty = "Goodbye" };
-            var writeStream = new BinaryTokenStreamWriter();
+            var buffer = new ByteArrayBufferWriter();
+            var context = new SerializationContext(this.fixture.SerializationManager, buffer);
+            var writeStream = new BinaryTokenStreamWriterV2(context);
             this.fixture.SerializationManager.Serialize(original, writeStream);
             Assert.Equal(1, ClassWithCustomSerializer.SerializeCounter); //Custom serializer was not called
 
-            var readStream = new BinaryTokenStreamReader(writeStream.ToBytes());
+            var readStream = new BinaryTokenStreamReader(buffer.Buffer.ToArray());
             var obj = this.fixture.SerializationManager.Deserialize(readStream);
             Assert.Equal(1, ClassWithCustomSerializer.DeserializeCounter); //Custom deserializer was not called
         }

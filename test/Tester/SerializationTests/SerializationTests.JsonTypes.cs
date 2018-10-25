@@ -125,10 +125,10 @@ namespace UnitTests.Serialization
             }
 
             [SerializerMethod]
-            public static void Serialize(object obj, ISerializationContext context, Type expected)
+            public static void Serialize(object obj, BinaryTokenStreamWriterV2 writer, Type expected)
             {
                 var str = JsonConvert.SerializeObject(obj, Settings);
-                context.GetSerializationManager().Serialize(str, context.StreamWriter);
+                writer.Context.GetSerializationManager().Serialize(str, writer);
             }
 
             [DeserializerMethod]

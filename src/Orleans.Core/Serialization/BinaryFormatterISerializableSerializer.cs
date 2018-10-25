@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Runtime.Serialization;
 
 namespace Orleans.Serialization
@@ -27,7 +27,7 @@ namespace Orleans.Serialization
         public object DeepCopy(object source, ICopyContext context) => this.serializer.DeepCopy(source, context);
 
         /// <inheritdoc />
-        public void Serialize(object item, ISerializationContext context, Type expectedType) => this.serializer.Serialize(item, context, expectedType);
+        public void Serialize(object item, BinaryTokenStreamWriterV2 writer, Type expectedType) => this.serializer.Serialize(item, writer, expectedType);
 
         /// <inheritdoc />
         public object Deserialize(Type expectedType, IDeserializationContext context) => this.serializer.Deserialize(expectedType, context);

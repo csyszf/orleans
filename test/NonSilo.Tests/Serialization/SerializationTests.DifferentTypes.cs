@@ -99,10 +99,10 @@ namespace UnitTests.Serialization
             }
 
             [SerializerMethod]
-            public static void Serializer(object untypedInput, ISerializationContext context, Type expected)
+            public static void Serializer(object untypedInput, BinaryTokenStreamWriterV2 writer, Type expected)
             {
                 TestTypeA input = (TestTypeA)untypedInput;
-                SerializationManager.SerializeInner(input.Collection, context, typeof(ICollection<TestTypeA>));
+                SerializationManager.SerializeInner(input.Collection, writer, typeof(ICollection<TestTypeA>));
             }
 
             [DeserializerMethod]

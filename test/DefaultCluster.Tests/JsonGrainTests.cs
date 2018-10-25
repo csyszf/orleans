@@ -1,4 +1,4 @@
-﻿using System.Threading.Tasks;
+using System.Threading.Tasks;
 using Newtonsoft.Json.Linq;
 using Orleans.CodeGeneration;
 using Orleans.Serialization;
@@ -60,11 +60,11 @@ namespace DefaultCluster.Tests.General
             }
 
             [SerializerMethod]
-            public static void Serializer(object untypedInput, ISerializationContext context, Type expected)
+            public static void Serializer(object untypedInput, BinaryTokenStreamWriterV2 writer, Type expected)
             {
                 var input = (JObject)untypedInput;
                 string str = input.ToString();
-                context.GetSerializationManager().Serialize(str, context.StreamWriter);
+                writer.Context.GetSerializationManager().Serialize(str, writer);
             }
 
             [DeserializerMethod]

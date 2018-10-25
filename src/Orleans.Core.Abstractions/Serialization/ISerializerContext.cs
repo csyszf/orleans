@@ -1,4 +1,5 @@
 using System;
+using System.Buffers;
 
 namespace Orleans.Serialization
 {
@@ -36,20 +37,18 @@ namespace Orleans.Serialization
         /// <summary>
         /// Gets the stream writer.
         /// </summary>
-        IBinaryTokenStreamWriter StreamWriter { get; }
+        IBufferWriter<byte> BufferWriter { get; }
+
+        int CurrentOffset { get; set; }
 
         /// <summary>
-        /// Records the provided object at the specified offset into <see cref="StreamWriter"/>.
+        /// Records the provided object at the specified offset into writer.
         /// </summary>
         /// <param name="original"></param>
         /// <param name="offset"></param>
         void RecordObject(object original, int offset);
 
         int CheckObjectWhileSerializing(object raw);
-
-        int CurrentOffset { get; }
-
-        void SerializeInner(object obj, Type expected);
     }
 
     public interface IDeserializationContext : ISerializerContext

@@ -1,4 +1,4 @@
-﻿
+
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -100,9 +100,7 @@ namespace Orleans.Transactions
                 var exception = (e as OrleansTransactionAbortedException)
                     ?? new OrleansTransactionAbortedException(TransactionId.ToString(), e);
 
-                var writer = new BinaryTokenStreamWriter();
-                sm.Serialize(exception, writer);
-                OriginalException = writer.ToByteArray();
+                OriginalException = sm.SerializeToByteArray(exception);
             }
         }
 

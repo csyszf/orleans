@@ -1,4 +1,5 @@
-﻿using Orleans.Serialization;
+using System.Buffers;
+using Orleans.Serialization;
 
 namespace Orleans.Runtime
 {
@@ -12,11 +13,17 @@ namespace Orleans.Runtime
 
         public static byte[] ToByteArray(this GrainId @this)
         {
-            var writer = new BinaryTokenStreamWriter();
+            var output = new ByteArrayBufferWriter();
+            var writer = new BinaryTokenStreamWriterV2(output);
             writer.Write(@this);
-            var result = writer.ToByteArray();
-            writer.ReleaseBuffers();
+            var result = output.Buffer.ToArray();
+            output.ReleaseBuffers();
             return result;
+        }
+
+        public static void Serialize(this GuidId @this, BinaryTokenStreamWriterV2 writer)
+        {
+            writer.Write(@this.Guid);
         }
     }
 }

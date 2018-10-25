@@ -210,7 +210,9 @@ namespace Orleans.Serialization
                 if (DirectSerializers.TryGetValue(typeHandle, out var serializer))
                 {
                     il.LoadArgument(1);
-                    il.Call(SerializationMethodInfos.GetStreamFromSerializationContext);
+                    //var m = typeof(ByteArrayBufferWriter).GetConstructor(Array.Empty<Type>());
+                    //il.Call(m);
+                    //il.Call(SerializationMethodInfos.GetStreamFromSerializationContext);
                     il.LoadLocal(typedInput);
                     il.LoadField(field);
 
@@ -482,16 +484,18 @@ namespace Orleans.Serialization
         private class SimpleTypeSerializer
         {
             public SimpleTypeSerializer(
-                Expression<Action<BinaryTokenStreamWriter>> write,
+                Write write,
                 Expression<Action<BinaryTokenStreamReader>> read)
             {
-                this.WriteMethod = TypeUtils.Method(write);
+                this.WriteMethod = write.Method;
                 this.ReadMethod = TypeUtils.Method(read);
             }
 
             public MethodInfo WriteMethod { get; }
 
             public MethodInfo ReadMethod { get; }
+
+            public delegate void Write(BinaryTokenStreamWriterV2 writer);
         }
     }
 }

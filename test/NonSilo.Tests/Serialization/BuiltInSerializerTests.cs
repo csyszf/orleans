@@ -937,7 +937,7 @@ namespace UnitTests.Serialization
             object deserialized;
             var formatter = new BinaryFormatter
             {
-                Context = new StreamingContext(StreamingContextStates.All, new SerializationContext(serializationManager))
+                Context = new StreamingContext(StreamingContextStates.All, new SerializationContext(serializationManager, new ByteArrayBufferWriter()))
             };
             using (var str = new MemoryStream())
             {
@@ -1110,7 +1110,7 @@ namespace UnitTests.Serialization
                 throw new NotSupportedException();
             }
 
-            public void Serialize(object item, ISerializationContext context, Type expectedType)
+            public void Serialize(object item, BinaryTokenStreamWriterV2 context, Type expectedType)
             {
                 throw new NotSupportedException();
             }
