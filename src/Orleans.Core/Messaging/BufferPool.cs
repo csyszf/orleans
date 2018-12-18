@@ -7,6 +7,7 @@ namespace Orleans.Runtime
 {
     internal class BufferPool: MemoryPool<byte>
     {
+        private readonly ArrayPool<byte> _pool;
         private readonly int minimumBufferSize;
         public static BufferPool GlobalPool;
         public int MinimumSize
@@ -26,11 +27,18 @@ namespace Orleans.Runtime
         private BufferPool(int minimumBufferSize)
         {
             this.minimumBufferSize = minimumBufferSize;
+            _pool = ArrayPool<byte>.Create();
         }
 
         public byte[] GetBuffer()
         {
-            byte[] buffer = ArrayPool<byte>.Shared.Rent(minimumBufferSize);
+            byte[] buffer = this._pool.Rent(minimumBufferSize);
+            return buffer;
+        }
+
+        public byte[] GetBuffer(int size)
+        {
+            byte[] buffer = this._pool.Rent(size);
             return buffer;
         }
 
@@ -48,7 +56,7 @@ namespace Orleans.Runtime
 
         public void Release(byte[] buffer)
         {
-            ArrayPool<byte>.Shared.Return(buffer);
+            this._pool.Return(buffer);
         }
 
         public void Release(List<ArraySegment<byte>> list)
@@ -85,7 +93,7 @@ namespace Orleans.Runtime
 
             public ArrayMemoryPoolBuffer(int size)
             {
-                _array = ArrayPool<byte>.Shared.Rent(size);
+                _array = GlobalPool.GetBuffer(size);
             }
 
             public Memory<byte> Memory
@@ -108,7 +116,7 @@ namespace Orleans.Runtime
                 if (array != null)
                 {
                     _array = null;
-                    ArrayPool<byte>.Shared.Return(array);
+                    GlobalPool.Release(array);
                 }
             }
         }
