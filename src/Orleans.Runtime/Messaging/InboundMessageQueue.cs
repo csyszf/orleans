@@ -49,6 +49,8 @@ namespace Orleans.Runtime.Messaging
             {
                 this.messageQueues[i] = Channel.CreateUnbounded<Message>(new UnboundedChannelOptions
                 {
+                    SingleReader = true,
+                    SingleWriter = false
                 });
                 if (this.statisticsLevel.CollectQueueStats())
                 {
@@ -98,24 +100,8 @@ namespace Orleans.Runtime.Messaging
 
         }
 
-        /// <inheritdoc />
-        public Message WaitMessage(Message.Categories type, CancellationToken cancellationToken)
-        {
-            var reader = this.messageQueues[(int)type].Reader;
-
-            while (true)
-            {
-                var vt = reader.WaitToReadAsync();
-                var res = vt.IsCompletedSuccessfully ? vt.Result : vt.ConfigureAwait(false).GetAwaiter().GetResult();
-                if (!res) return null;
-
-                // Continue reading if there're more messages
-                while (reader.TryRead(out var msg))
-                {
-                    return msg;
-                }
-            }
-        }
+        public ChannelReader<Message> GetReader(Message.Categories type)
+            => this.messageQueues[(int)type].Reader;
 
         /// <inheritdoc />
         public void Dispose()

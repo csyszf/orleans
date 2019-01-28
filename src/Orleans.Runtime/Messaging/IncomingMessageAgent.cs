@@ -46,16 +46,27 @@ namespace Orleans.Runtime.Messaging
             CancellationToken ct = Cts.Token;
             while (true)
             {
-                // Get an application message
-                var msg = messageCenter.WaitMessage(category, ct);
-                if (msg == null)
+                var reader = messageCenter.GetReader(category);
+
+                var vt = reader.WaitToReadAsync(ct);
+                var res = vt.IsCompletedSuccessfully ? vt.Result : vt.ConfigureAwait(false).GetAwaiter().GetResult();
+                if (!res)
                 {
-                    if (Log.IsEnabled(LogLevel.Debug)) Log.Debug("Dequeued a null message, exiting");
-                    // Null return means cancelled
-                    break;
+                    return;
                 }
 
-                ReceiveMessage(msg);
+                // Get an application message
+                while (reader.TryRead(out Message msg))
+                {
+                    if (msg == null)
+                    {
+                        if (Log.IsEnabled(LogLevel.Debug)) Log.Debug("Dequeued a null message, exiting");
+                        // Null return means cancelled
+                        return;
+                    }
+
+                    ReceiveMessage(msg);
+                }
             }
         }
 

@@ -1,5 +1,6 @@
 using System;
 using System.Threading;
+using System.Threading.Channels;
 using System.Threading.Tasks;
 
 namespace Orleans.Runtime
@@ -14,9 +15,9 @@ namespace Orleans.Runtime
 
         void Stop();
 
-        void SendMessage(Message msg);
+        ChannelReader<Message> GetReader(Message.Categories type);
 
-        Message WaitMessage(Message.Categories type, CancellationToken ct);
+        void SendMessage(Message msg);
 
         void RegisterLocalMessageHandler(Message.Categories category, Action<Message> handler);
 
